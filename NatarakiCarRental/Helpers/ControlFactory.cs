@@ -34,7 +34,7 @@ public static class ControlFactory
             TextImageRelation = TextImageRelation.ImageBeforeText,
             ImageAlign = ContentAlignment.MiddleLeft,
             TextAlign = ContentAlignment.MiddleLeft,
-            Size = new Size(208, 42),
+            Size = new Size(228, 42),
             Padding = new Padding(14, 0, 0, 0),
             Margin = new Padding(0, 0, 0, 8),
             BackColor = Color.Transparent,
@@ -83,21 +83,29 @@ public static class ControlFactory
 
     public static Panel CreateCardPanel(Size size)
     {
-        return new Panel
+        Panel panel = new()
         {
             Size = size,
             BackColor = ThemeHelper.Surface,
-            Padding = new Padding(28)
+            Padding = new Padding(28),
+            BorderStyle = BorderStyle.None
         };
+
+        ApplyRoundedPanel(panel);
+
+        return panel;
     }
 
-    public static void ApplyRoundedPanel(Panel panel)
+    public static void ApplyRoundedPanel(Control panel)
     {
-        panel.Paint += (_, e) =>
-        {
-            using Pen borderPen = new(ThemeHelper.Border);
-            Rectangle borderRectangle = new(0, 0, panel.Width - 1, panel.Height - 1);
-            e.Graphics.DrawRectangle(borderPen, borderRectangle);
-        };
+        panel.Paint += (_, e) => DrawBorder(panel, e.Graphics);
+        panel.Resize += (_, _) => panel.Invalidate();
+    }
+
+    private static void DrawBorder(Control control, Graphics graphics)
+    {
+        using Pen borderPen = new(ThemeHelper.Border);
+        Rectangle borderRectangle = new(0, 0, control.Width - 1, control.Height - 1);
+        graphics.DrawRectangle(borderPen, borderRectangle);
     }
 }

@@ -1,13 +1,14 @@
 using FontAwesome.Sharp;
 using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
+using NatarakiCarRental.UserControls.Cars;
+using NatarakiCarRental.UserControls.Dashboard;
 
 namespace NatarakiCarRental.Forms.Main;
 
 public sealed class MainForm : Form
 {
-    private readonly Label _pageTitleLabel = new();
-    private readonly Label _pagePlaceholderLabel = new();
+    private readonly Panel _contentPanel = new();
     private readonly List<IconButton> _navigationButtons = [];
 
     public event EventHandler? LoggedOut;
@@ -16,21 +17,21 @@ public sealed class MainForm : Form
     {
         CurrentUser = currentUser;
         InitializeMainForm();
-        ShowPlaceholder("Overview");
+        ShowOverview();
     }
 
     private User CurrentUser { get; }
 
     private void InitializeMainForm()
     {
-        Text = AppConstants.ApplicationName;
+        Text = string.Empty;
         ThemeHelper.ApplyStandardMainFormSettings(this);
 
         Panel sidebarPanel = new()
         {
             BackColor = ThemeHelper.Surface,
             Dock = DockStyle.Left,
-            Width = 240,
+            Width = 280,
             Padding = new Padding(16, 22, 16, 16)
         };
 
@@ -55,8 +56,8 @@ public sealed class MainForm : Form
             Text = AppConstants.ApplicationName,
             AutoSize = false,
             Location = new Point(42, 4),
-            Size = new Size(166, 44),
-            Font = FontHelper.Title(13F),
+            Size = new Size(220, 44),
+            Font = FontHelper.Title(12F),
             ForeColor = ThemeHelper.TextPrimary,
             TextAlign = ContentAlignment.MiddleLeft
         };
@@ -93,14 +94,14 @@ public sealed class MainForm : Form
         foreach (NavigationItem menuItem in menuItems)
         {
             IconButton button = ControlFactory.CreateSidebarButton(menuItem.Text, menuItem.Icon);
-            button.Click += (_, _) => ShowPlaceholder(menuItem.Text);
+            button.Click += (_, _) => Navigate(menuItem.Text);
             _navigationButtons.Add(button);
             menuPanel.Controls.Add(button);
         }
 
-        IconButton logoutButton = ControlFactory.CreateSidebarButton("Logout", IconChar.RightFromBracket, isDanger: true);
+        IconButton logoutButton = ControlFactory.CreateSidebarButton("Log Out", IconChar.RightFromBracket, isDanger: true);
         logoutButton.Dock = DockStyle.Bottom;
-        logoutButton.Width = 208;
+        logoutButton.Width = 228;
         logoutButton.Click += LogoutButton_Click;
 
         brandPanel.Controls.Add(brandIcon);
@@ -111,42 +112,95 @@ public sealed class MainForm : Form
         sidebarPanel.Controls.Add(brandPanel);
         sidebarPanel.Controls.Add(logoutButton);
 
-        Panel contentPanel = new()
-        {
-            Dock = DockStyle.Fill,
-            Padding = new Padding(32)
-        };
+        _contentPanel.Dock = DockStyle.Fill;
+        _contentPanel.BackColor = ThemeHelper.ContentBackground;
 
-        _pageTitleLabel.AutoSize = false;
-        _pageTitleLabel.Dock = DockStyle.Top;
-        _pageTitleLabel.Height = 48;
-        _pageTitleLabel.Font = FontHelper.Title(20F);
-        _pageTitleLabel.ForeColor = ThemeHelper.TextPrimary;
-
-        Panel placeholderCard = ControlFactory.CreateCardPanel(new Size(0, 160));
-        placeholderCard.Dock = DockStyle.Top;
-        placeholderCard.Margin = new Padding(0, 12, 0, 0);
-        ControlFactory.ApplyRoundedPanel(placeholderCard);
-
-        _pagePlaceholderLabel.AutoSize = false;
-        _pagePlaceholderLabel.Dock = DockStyle.Fill;
-        _pagePlaceholderLabel.Font = FontHelper.Regular(12F);
-        _pagePlaceholderLabel.ForeColor = ThemeHelper.TextSecondary;
-        _pagePlaceholderLabel.TextAlign = ContentAlignment.MiddleLeft;
-
-        placeholderCard.Controls.Add(_pagePlaceholderLabel);
-        contentPanel.Controls.Add(placeholderCard);
-        contentPanel.Controls.Add(_pageTitleLabel);
-
-        Controls.Add(contentPanel);
+        Controls.Add(_contentPanel);
         Controls.Add(sidebarPanel);
+    }
+
+    private void Navigate(string pageName)
+    {
+        if (pageName == "Overview")
+        {
+            ShowOverview();
+            return;
+        }
+
+        if (pageName == "Car Garage")
+        {
+            ShowCarGarage();
+            return;
+        }
+
+        ShowPlaceholder(pageName);
+    }
+
+    private void ShowOverview()
+    {
+        LoadContent(new OverviewControl());
+        SetActiveNavigation("Overview");
+    }
+
+    private void ShowCarGarage()
+    {
+        LoadContent(new CarGarageControl());
+        SetActiveNavigation("Car Garage");
     }
 
     private void ShowPlaceholder(string pageName)
     {
-        _pageTitleLabel.Text = pageName;
-        _pagePlaceholderLabel.Text = $"{pageName} module placeholder. This section will be built in a later step.";
+        UserControl placeholderControl = CreatePlaceholderControl(pageName);
+        LoadContent(placeholderControl);
+        SetActiveNavigation(pageName);
+    }
 
+    private void LoadContent(Control control)
+    {
+        _contentPanel.Controls.Clear();
+        control.Dock = DockStyle.Fill;
+        _contentPanel.Controls.Add(control);
+    }
+
+    private static UserControl CreatePlaceholderControl(string pageName)
+    {
+        UserControl control = new()
+        {
+            BackColor = ThemeHelper.ContentBackground,
+            Padding = new Padding(32)
+        };
+
+        Label titleLabel = new()
+        {
+            Text = pageName,
+            Dock = DockStyle.Top,
+            Height = 48,
+            Font = FontHelper.Title(20F),
+            ForeColor = ThemeHelper.TextPrimary
+        };
+
+        Panel placeholderCard = ControlFactory.CreateCardPanel(new Size(0, 160));
+        placeholderCard.Dock = DockStyle.Top;
+        placeholderCard.Padding = new Padding(28);
+
+        Label placeholderLabel = new()
+        {
+            Text = $"{pageName} module placeholder. This section will be built in a later step.",
+            Dock = DockStyle.Fill,
+            Font = FontHelper.Regular(12F),
+            ForeColor = ThemeHelper.TextSecondary,
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+
+        placeholderCard.Controls.Add(placeholderLabel);
+        control.Controls.Add(placeholderCard);
+        control.Controls.Add(titleLabel);
+
+        return control;
+    }
+
+    private void SetActiveNavigation(string pageName)
+    {
         foreach (IconButton button in _navigationButtons)
         {
             bool isActive = button.Text == pageName;

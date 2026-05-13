@@ -1,0 +1,65 @@
+using FontAwesome.Sharp;
+using NatarakiCarRental.Helpers;
+
+namespace NatarakiCarRental.UserControls.Cards;
+
+public sealed class MetricCardControl : UserControl
+{
+    private readonly IconPictureBox _iconBox = new();
+    private readonly Label _titleLabel = new();
+    private readonly Label _valueLabel = new();
+    private readonly Label _helperTextLabel = new();
+
+    public MetricCardControl()
+    {
+        InitializeControl();
+    }
+
+    public void SetMetric(IconChar icon, string title, string value, string helperText)
+    {
+        _iconBox.IconChar = icon;
+        _titleLabel.Text = title;
+        _valueLabel.Text = value;
+        _helperTextLabel.Text = helperText;
+    }
+
+    private void InitializeControl()
+    {
+        BackColor = ThemeHelper.Surface;
+        BorderStyle = BorderStyle.None;
+        Margin = new Padding(0);
+        Padding = new Padding(18);
+        MinimumSize = new Size(190, 118);
+
+        _iconBox.IconColor = ThemeHelper.Primary;
+        _iconBox.IconSize = 24;
+        _iconBox.BackColor = ThemeHelper.Surface;
+        _iconBox.Location = new Point(18, 18);
+        _iconBox.Size = new Size(30, 30);
+
+        _titleLabel.AutoSize = false;
+        _titleLabel.Location = new Point(58, 18);
+        _titleLabel.Size = new Size(150, 24);
+        _titleLabel.Font = FontHelper.SemiBold(9F);
+        _titleLabel.ForeColor = ThemeHelper.TextSecondary;
+
+        _valueLabel.AutoSize = false;
+        _valueLabel.Location = new Point(18, 56);
+        _valueLabel.Size = new Size(190, 32);
+        _valueLabel.Font = FontHelper.Title(18F);
+        _valueLabel.ForeColor = ThemeHelper.TextPrimary;
+
+        _helperTextLabel.AutoSize = false;
+        _helperTextLabel.Location = new Point(18, 92);
+        _helperTextLabel.Size = new Size(190, 26);
+        _helperTextLabel.Font = FontHelper.Regular(8.5F);
+        _helperTextLabel.ForeColor = ThemeHelper.TextSecondary;
+
+        Controls.Add(_iconBox);
+        Controls.Add(_titleLabel);
+        Controls.Add(_valueLabel);
+        Controls.Add(_helperTextLabel);
+
+        ControlFactory.ApplyRoundedPanel(this);
+    }
+}
