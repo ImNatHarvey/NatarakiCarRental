@@ -62,9 +62,9 @@ public sealed class OverviewControl : UserControl
         TableLayoutPanel grid = new()
         {
             Dock = DockStyle.Top,
-            Height = 148,
+            Height = 152,
             ColumnCount = 4,
-            Padding = new Padding(0, 18, 0, 6)
+            Padding = new Padding(0, 18, 0, 10)
         };
 
         for (int i = 0; i < 4; i++)
@@ -72,25 +72,25 @@ public sealed class OverviewControl : UserControl
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
         }
 
-        grid.Controls.Add(CreateMetricCard(IconChar.Car, "Total Cars", "0", "Registered vehicles"), 0, 0);
-        grid.Controls.Add(CreateMetricCard(IconChar.CircleCheck, "Available Cars", "0", "Ready for rental"), 1, 0);
-        grid.Controls.Add(CreateMetricCard(IconChar.Key, "Active Rentals", "0", "Currently booked"), 2, 0);
-        grid.Controls.Add(CreateMetricCard(IconChar.PesoSign, "Monthly Revenue", "\u20b10.00", "Current month"), 3, 0);
+        AddMetricCard(grid, IconChar.Car, "Total Cars", "0", "Registered vehicles", ThemeHelper.Primary, 0);
+        AddMetricCard(grid, IconChar.CircleCheck, "Available Cars", "0", "Ready for rental", ThemeHelper.Success, 1);
+        AddMetricCard(grid, IconChar.Key, "Active Rentals", "0", "Currently booked", ThemeHelper.Warning, 2);
+        AddMetricCard(grid, IconChar.PesoSign, "Monthly Revenue", "\u20b10.00", "Current month", ThemeHelper.Purple, 3);
 
         return grid;
     }
 
-    private static MetricCardControl CreateMetricCard(IconChar icon, string title, string value, string helperText)
+    private static void AddMetricCard(TableLayoutPanel grid, IconChar icon, string title, string value, string helperText, Color iconColor, int column)
     {
         MetricCardControl card = new()
         {
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 0, 14, 8)
+            Margin = new Padding(0, 0, column == 3 ? 0 : 14, 0)
         };
 
-        card.SetMetric(icon, title, value, helperText);
+        card.SetMetric(icon, title, value, helperText, iconColor);
 
-        return card;
+        grid.Controls.Add(card, column, 0);
     }
 
     private static TableLayoutPanel CreateLowerGrid()

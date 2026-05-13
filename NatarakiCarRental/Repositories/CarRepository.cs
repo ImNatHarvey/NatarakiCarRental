@@ -90,4 +90,82 @@ public sealed class CarRepository
 
         return counts ?? new CarCounts();
     }
+
+    public async Task<bool> PlateNumberExistsAsync(string plateNumber)
+    {
+        const string sql = """
+            SELECT COUNT(1)
+            FROM dbo.Cars
+            WHERE PlateNumber = @PlateNumber;
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        int count = await connection.ExecuteScalarAsync<int>(sql, new { PlateNumber = plateNumber.Trim().ToUpperInvariant() });
+
+        return count > 0;
+    }
+
+    public async Task<int> AddCarAsync(Car car)
+    {
+        const string sql = """
+            INSERT INTO dbo.Cars
+            (
+                CarName,
+                Brand,
+                Model,
+                PlateNumber,
+                [Year],
+                Color,
+                Transmission,
+                FuelType,
+                SeatingCapacity,
+                RatePerDay,
+                Status,
+                ImagePath,
+                OrCrPath
+            )
+            OUTPUT INSERTED.CarId
+            VALUES
+            (
+                @CarName,
+                @Brand,
+                @Model,
+                @PlateNumber,
+                @Year,
+                @Color,
+                @Transmission,
+                @FuelType,
+                @SeatingCapacity,
+                @RatePerDay,
+                @Status,
+                @ImagePath,
+                @OrCrPath
+            );
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.ExecuteScalarAsync<int>(
+            sql,
+            new
+            {
+                car.CarName,
+                Brand = NullIfWhiteSpace(car.Brand),
+                car.Model,
+                PlateNumber = car.PlateNumber.Trim().ToUpperInvariant(),
+                car.Year,
+                Color = NullIfWhiteSpace(car.Color),
+                Transmission = NullIfWhiteSpace(car.Transmission),
+                FuelType = NullIfWhiteSpace(car.FuelType),
+                car.SeatingCapacity,
+                car.RatePerDay,
+                car.Status,
+                ImagePath = NullIfWhiteSpace(car.ImagePath),
+                OrCrPath = NullIfWhiteSpace(car.OrCrPath)
+            });
+    }
+
+    private static string? NullIfWhiteSpace(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
 }

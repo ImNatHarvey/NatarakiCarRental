@@ -1,4 +1,5 @@
 using FontAwesome.Sharp;
+using NatarakiCarRental.UserControls.Common;
 
 namespace NatarakiCarRental.Helpers;
 
@@ -81,31 +82,25 @@ public static class ControlFactory
         return textBox;
     }
 
-    public static Panel CreateCardPanel(Size size)
+    public static BorderedPanel CreateCardPanel(Size size)
     {
-        Panel panel = new()
+        BorderedPanel panel = new()
         {
             Size = size,
             BackColor = ThemeHelper.Surface,
             Padding = new Padding(28),
-            BorderStyle = BorderStyle.None
+            BorderColor = ThemeHelper.Border
         };
-
-        ApplyRoundedPanel(panel);
 
         return panel;
     }
 
     public static void ApplyRoundedPanel(Control panel)
     {
-        panel.Paint += (_, e) => DrawBorder(panel, e.Graphics);
-        panel.Resize += (_, _) => panel.Invalidate();
-    }
-
-    private static void DrawBorder(Control control, Graphics graphics)
-    {
-        using Pen borderPen = new(ThemeHelper.Border);
-        Rectangle borderRectangle = new(0, 0, control.Width - 1, control.Height - 1);
-        graphics.DrawRectangle(borderPen, borderRectangle);
+        if (panel is BorderedPanel borderedPanel)
+        {
+            borderedPanel.BorderColor = ThemeHelper.Border;
+            borderedPanel.Invalidate();
+        }
     }
 }

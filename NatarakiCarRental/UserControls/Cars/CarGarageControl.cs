@@ -1,4 +1,5 @@
 using FontAwesome.Sharp;
+using NatarakiCarRental.Forms.Cars;
 using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
 using NatarakiCarRental.Services;
@@ -13,9 +14,9 @@ public sealed class CarGarageControl : UserControl
     private readonly MetricCardControl _availableCarsCard = new();
     private readonly MetricCardControl _rentedCarsCard = new();
     private readonly MetricCardControl _archivedCarsCard = new();
-    private readonly TextBox _searchTextBox = ControlFactory.CreateTextBox(340);
-    private readonly Button _activeCarsButton = new();
-    private readonly Button _archivedCarsButton = new();
+    private readonly TextBox _searchTextBox = ControlFactory.CreateTextBox(380);
+    private readonly IconButton _activeCarsButton = new();
+    private readonly IconButton _archivedCarsButton = new();
     private readonly DataGridView _carsGrid = new();
     private readonly Label _emptyStateLabel = new();
 
@@ -48,8 +49,8 @@ public sealed class CarGarageControl : UserControl
 
         mainLayout.Controls.Add(CreateHeaderPanel(), 0, 0);
         mainLayout.Controls.Add(CreateMetricGrid(), 0, 1);
-        mainLayout.Controls.Add(CreateToolbarPanel(), 0, 2);
-        mainLayout.Controls.Add(CreateTabsPanel(), 0, 3);
+        mainLayout.Controls.Add(CreateActionBarPanel(), 0, 2);
+        mainLayout.Controls.Add(CreateSearchPanel(), 0, 3);
         mainLayout.Controls.Add(CreateTablePanel(), 0, 4);
 
         Controls.Add(mainLayout);
@@ -63,21 +64,11 @@ public sealed class CarGarageControl : UserControl
             BackColor = ThemeHelper.ContentBackground
         };
 
-        IconPictureBox icon = new()
-        {
-            IconChar = IconChar.Car,
-            IconColor = ThemeHelper.Primary,
-            IconSize = 28,
-            BackColor = ThemeHelper.ContentBackground,
-            Location = new Point(0, 2),
-            Size = new Size(34, 34)
-        };
-
         Label titleLabel = new()
         {
             Text = "Car Garage",
             AutoSize = false,
-            Location = new Point(42, 0),
+            Location = new Point(0, 0),
             Size = new Size(260, 34),
             Font = FontHelper.Title(22F),
             ForeColor = ThemeHelper.TextPrimary
@@ -92,8 +83,6 @@ public sealed class CarGarageControl : UserControl
             Font = FontHelper.Regular(10.5F),
             ForeColor = ThemeHelper.TextSecondary
         };
-
-        panel.Controls.Add(icon);
         panel.Controls.Add(titleLabel);
         panel.Controls.Add(subtitleLabel);
 
@@ -114,23 +103,23 @@ public sealed class CarGarageControl : UserControl
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
         }
 
-        AddMetricCard(grid, _totalCarsCard, IconChar.Car, "Total Cars", 0, "All active vehicles");
-        AddMetricCard(grid, _availableCarsCard, IconChar.CircleCheck, "Available Cars", 1, "Ready for rental");
-        AddMetricCard(grid, _rentedCarsCard, IconChar.Key, "Rented Cars", 2, "Currently rented");
-        AddMetricCard(grid, _archivedCarsCard, IconChar.BoxArchive, "Archived Cars", 3, "Hidden from active list");
+        AddMetricCard(grid, _totalCarsCard, IconChar.Car, "Total Cars", 0, "All active vehicles", ThemeHelper.Primary);
+        AddMetricCard(grid, _availableCarsCard, IconChar.CircleCheck, "Available Cars", 1, "Ready for rental", ThemeHelper.Success);
+        AddMetricCard(grid, _rentedCarsCard, IconChar.Key, "Rented Cars", 2, "Currently rented", ThemeHelper.Warning);
+        AddMetricCard(grid, _archivedCarsCard, IconChar.BoxArchive, "Archived Cars", 3, "Hidden from active list", ThemeHelper.GrayIcon);
 
         return grid;
     }
 
-    private static void AddMetricCard(TableLayoutPanel grid, MetricCardControl card, IconChar icon, string title, int column, string helperText)
+    private static void AddMetricCard(TableLayoutPanel grid, MetricCardControl card, IconChar icon, string title, int column, string helperText, Color iconColor)
     {
         card.Dock = DockStyle.Fill;
         card.Margin = new Padding(0, 0, column == 3 ? 0 : 14, 0);
-        card.SetMetric(icon, title, "0", helperText);
+        card.SetMetric(icon, title, "0", helperText, iconColor);
         grid.Controls.Add(card, column, 0);
     }
 
-    private Panel CreateToolbarPanel()
+    private Panel CreateActionBarPanel()
     {
         Panel panel = new()
         {
@@ -138,33 +127,29 @@ public sealed class CarGarageControl : UserControl
             BackColor = ThemeHelper.ContentBackground
         };
 
-        _searchTextBox.PlaceholderText = "Search by car name, model, or plate number";
-        _searchTextBox.Location = new Point(0, 12);
-        _searchTextBox.Width = 380;
-        _searchTextBox.TextChanged += async (_, _) => await LoadCarsAsync();
+        ConfigureTabButton(_activeCarsButton, "Active Cars", IconChar.CircleCheck, new Point(0, 10));
+        ConfigureTabButton(_archivedCarsButton, "Archived Cars", IconChar.BoxArchive, new Point(128, 10));
 
-        Button addCarButton = ControlFactory.CreatePrimaryButton("Add Car", 118, 36);
-        addCarButton.Location = new Point(394, 10);
+        IconButton addCarButton = new()
+        {
+            Text = "Add Car",
+            IconChar = IconChar.Plus,
+            IconColor = Color.White,
+            IconSize = 14,
+            Size = new Size(116, 36),
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            Location = new Point(Width - 116, 10),
+            BackColor = ThemeHelper.Primary,
+            ForeColor = Color.White,
+            Font = FontHelper.SemiBold(9F),
+            FlatStyle = FlatStyle.Flat,
+            Cursor = Cursors.Hand
+        };
+        addCarButton.FlatAppearance.BorderSize = 0;
         addCarButton.TextImageRelation = TextImageRelation.ImageBeforeText;
-        addCarButton.Click += (_, _) => MessageBoxHelper.ShowInfo("The Add Car form will be implemented next.");
+        addCarButton.Click += AddCarButton_Click;
 
-        panel.Controls.Add(_searchTextBox);
-        panel.Controls.Add(addCarButton);
-
-        return panel;
-    }
-
-    private Panel CreateTabsPanel()
-    {
-        Panel panel = new()
-        {
-            Dock = DockStyle.Fill,
-            BackColor = ThemeHelper.ContentBackground
-        };
-
-        ConfigureTabButton(_activeCarsButton, "Active Cars", new Point(0, 6));
-        ConfigureTabButton(_archivedCarsButton, "Archived Cars", new Point(116, 6));
-
+        panel.Resize += (_, _) => addCarButton.Left = panel.Width - addCarButton.Width;
         _activeCarsButton.Click += async (_, _) =>
         {
             _showArchived = false;
@@ -179,15 +164,37 @@ public sealed class CarGarageControl : UserControl
 
         panel.Controls.Add(_activeCarsButton);
         panel.Controls.Add(_archivedCarsButton);
+        panel.Controls.Add(addCarButton);
 
         return panel;
     }
 
-    private static void ConfigureTabButton(Button button, string text, Point location)
+    private Panel CreateSearchPanel()
+    {
+        Panel panel = new()
+        {
+            Dock = DockStyle.Fill,
+            BackColor = ThemeHelper.ContentBackground
+        };
+
+        _searchTextBox.PlaceholderText = "Search by car name, model, or plate number";
+        _searchTextBox.Location = new Point(0, 8);
+        _searchTextBox.Width = 380;
+        _searchTextBox.TextChanged += async (_, _) => await LoadCarsAsync();
+
+        panel.Controls.Add(_searchTextBox);
+
+        return panel;
+    }
+
+    private static void ConfigureTabButton(IconButton button, string text, IconChar icon, Point location)
     {
         button.Text = text;
+        button.IconChar = icon;
+        button.IconSize = 16;
+        button.TextImageRelation = TextImageRelation.ImageBeforeText;
         button.Location = location;
-        button.Size = new Size(104, 34);
+        button.Size = new Size(120, 34);
         button.FlatStyle = FlatStyle.Flat;
         button.Cursor = Cursors.Hand;
         button.Font = FontHelper.SemiBold(9F);
@@ -282,10 +289,10 @@ public sealed class CarGarageControl : UserControl
 
     private void UpdateMetricCards(CarCounts counts)
     {
-        _totalCarsCard.SetMetric(IconChar.Car, "Total Cars", counts.TotalCars.ToString(), "All active vehicles");
-        _availableCarsCard.SetMetric(IconChar.CircleCheck, "Available Cars", counts.AvailableCars.ToString(), "Ready for rental");
-        _rentedCarsCard.SetMetric(IconChar.Key, "Rented Cars", counts.RentedCars.ToString(), "Currently rented");
-        _archivedCarsCard.SetMetric(IconChar.BoxArchive, "Archived Cars", counts.ArchivedCars.ToString(), "Hidden from active list");
+        _totalCarsCard.SetMetric(IconChar.Car, "Total Cars", counts.TotalCars.ToString(), "All active vehicles", ThemeHelper.Primary);
+        _availableCarsCard.SetMetric(IconChar.CircleCheck, "Available Cars", counts.AvailableCars.ToString(), "Ready for rental", ThemeHelper.Success);
+        _rentedCarsCard.SetMetric(IconChar.Key, "Rented Cars", counts.RentedCars.ToString(), "Currently rented", ThemeHelper.Warning);
+        _archivedCarsCard.SetMetric(IconChar.BoxArchive, "Archived Cars", counts.ArchivedCars.ToString(), "Hidden from active list", ThemeHelper.GrayIcon);
     }
 
     private void PopulateGrid(IReadOnlyList<Car> cars)
@@ -312,10 +319,11 @@ public sealed class CarGarageControl : UserControl
         ApplyTabStyle(_archivedCarsButton, _showArchived);
     }
 
-    private static void ApplyTabStyle(Button button, bool isActive)
+    private static void ApplyTabStyle(IconButton button, bool isActive)
     {
         button.BackColor = isActive ? ThemeHelper.Primary : ThemeHelper.Surface;
         button.ForeColor = isActive ? Color.White : ThemeHelper.TextPrimary;
+        button.IconColor = isActive ? Color.White : ThemeHelper.TextSecondary;
     }
 
     private void CarsGrid_CellContentClick(object? sender, DataGridViewCellEventArgs e)
@@ -331,6 +339,17 @@ public sealed class CarGarageControl : UserControl
         {
             string actionName = columnName.Replace("Action", string.Empty);
             MessageBoxHelper.ShowInfo($"{actionName} car feature is coming next.");
+        }
+    }
+
+    private async void AddCarButton_Click(object? sender, EventArgs e)
+    {
+        using AddCarForm addCarForm = new();
+
+        if (addCarForm.ShowDialog(this) == DialogResult.OK)
+        {
+            _showArchived = false;
+            await LoadCarsAsync();
         }
     }
 }

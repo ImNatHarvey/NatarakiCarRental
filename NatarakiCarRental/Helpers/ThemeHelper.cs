@@ -14,10 +14,15 @@ public static class ThemeHelper
     public static readonly Color Primary = Color.FromArgb(37, 99, 235);
     public static readonly Color PrimaryHover = Color.FromArgb(29, 78, 216);
     public static readonly Color Secondary = Color.FromArgb(219, 234, 254);
+    public static readonly Color Success = Color.FromArgb(22, 163, 74);
+    public static readonly Color Warning = Color.FromArgb(217, 119, 6);
+    public static readonly Color Purple = Color.FromArgb(124, 58, 237);
+    public static readonly Color GrayIcon = Color.FromArgb(100, 116, 139);
     public static readonly Color TextPrimary = Color.FromArgb(30, 41, 59);
     public static readonly Color TextSecondary = Color.FromArgb(100, 116, 139);
     public static readonly Color Border = Color.FromArgb(203, 213, 225);
     public static readonly Color Danger = Color.FromArgb(220, 38, 38);
+    public static readonly Color Error = Danger;
 
     public static readonly Color AppBackground = Background;
     public static readonly Color SidebarBackground = Surface;

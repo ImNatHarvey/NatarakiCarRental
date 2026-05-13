@@ -1,9 +1,10 @@
 using FontAwesome.Sharp;
 using NatarakiCarRental.Helpers;
+using NatarakiCarRental.UserControls.Common;
 
 namespace NatarakiCarRental.UserControls.Cards;
 
-public sealed class MetricCardControl : UserControl
+public sealed class MetricCardControl : BorderedPanel
 {
     private readonly IconPictureBox _iconBox = new();
     private readonly Label _titleLabel = new();
@@ -17,7 +18,13 @@ public sealed class MetricCardControl : UserControl
 
     public void SetMetric(IconChar icon, string title, string value, string helperText)
     {
+        SetMetric(icon, title, value, helperText, ThemeHelper.Primary);
+    }
+
+    public void SetMetric(IconChar icon, string title, string value, string helperText, Color iconColor)
+    {
         _iconBox.IconChar = icon;
+        _iconBox.IconColor = iconColor;
         _titleLabel.Text = title;
         _valueLabel.Text = value;
         _helperTextLabel.Text = helperText;
@@ -26,7 +33,7 @@ public sealed class MetricCardControl : UserControl
     private void InitializeControl()
     {
         BackColor = ThemeHelper.Surface;
-        BorderStyle = BorderStyle.None;
+        BorderColor = ThemeHelper.Border;
         Margin = new Padding(0);
         Padding = new Padding(18);
         MinimumSize = new Size(190, 118);
@@ -59,7 +66,5 @@ public sealed class MetricCardControl : UserControl
         Controls.Add(_titleLabel);
         Controls.Add(_valueLabel);
         Controls.Add(_helperTextLabel);
-
-        ControlFactory.ApplyRoundedPanel(this);
     }
 }
