@@ -20,45 +20,44 @@ public sealed class LoginForm : Form
     private void InitializeLoginForm()
     {
         Text = AppConstants.ApplicationName;
-        ThemeHelper.ApplyStandardFormSettings(this);
+        ThemeHelper.ApplyCompactDialogFormSettings(this);
 
         TableLayoutPanel rootLayout = new()
         {
             Dock = DockStyle.Fill,
-            BackColor = ThemeHelper.Background,
+            BackColor = ThemeHelper.Surface,
             ColumnCount = 2,
             RowCount = 1,
-            Padding = new Padding(80)
+            Padding = new Padding(0)
         };
-        rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48F));
-        rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52F));
+        rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 390F));
+        rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         rootLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         Panel brandingPanel = new()
         {
             Dock = DockStyle.Fill,
-            BackColor = ThemeHelper.Secondary,
-            Padding = new Padding(52)
+            BackColor = Color.FromArgb(248, 250, 252)
         };
 
         IconPictureBox carIcon = new()
         {
             IconChar = IconChar.Car,
             IconColor = ThemeHelper.Primary,
-            IconSize = 62,
-            BackColor = ThemeHelper.Secondary,
-            Location = new Point(52, 134),
-            Size = new Size(70, 70)
+            IconSize = 46,
+            BackColor = Color.FromArgb(248, 250, 252),
+            Location = new Point(64, 140),
+            Size = new Size(52, 52)
         };
 
         Label titleLabel = new()
         {
             AutoSize = false,
             Text = AppConstants.ApplicationName,
-            Font = FontHelper.Title(28F),
+            Font = FontHelper.Title(22F),
             ForeColor = ThemeHelper.Primary,
-            Location = new Point(52, 218),
-            Size = new Size(420, 52),
+            Location = new Point(64, 204),
+            Size = new Size(270, 34),
             TextAlign = ContentAlignment.MiddleLeft
         };
 
@@ -66,59 +65,58 @@ public sealed class LoginForm : Form
         {
             AutoSize = false,
             Text = "Internal scheduling and record management system",
-            Font = FontHelper.Regular(12F),
+            Font = FontHelper.Regular(10.5F),
             ForeColor = ThemeHelper.TextSecondary,
-            Location = new Point(56, 278),
-            Size = new Size(390, 58),
+            Location = new Point(66, 248),
+            Size = new Size(250, 50),
             TextAlign = ContentAlignment.MiddleLeft
         };
 
         Panel accentLine = new()
         {
             BackColor = ThemeHelper.Primary,
-            Location = new Point(56, 354),
-            Size = new Size(96, 4)
+            Location = new Point(66, 318),
+            Size = new Size(72, 3)
         };
 
         Panel formPanel = new()
         {
             Dock = DockStyle.Fill,
-            BackColor = ThemeHelper.Surface,
-            Padding = new Padding(76, 96, 76, 96)
+            BackColor = ThemeHelper.Surface
         };
 
         Label loginHeadingLabel = new()
         {
             AutoSize = false,
             Text = "Log In",
-            Font = FontHelper.Title(24F),
+            Font = FontHelper.Title(18F),
             ForeColor = ThemeHelper.TextPrimary,
-            Location = new Point(76, 132),
-            Size = new Size(360, 44)
+            Location = new Point(82, 116),
+            Size = new Size(320, 32)
         };
 
         Label subtextLabel = new()
         {
             AutoSize = false,
             Text = "Sign in with your system account",
-            Font = FontHelper.Regular(10.5F),
+            Font = FontHelper.Regular(9.5F),
             ForeColor = ThemeHelper.TextSecondary,
-            Location = new Point(78, 178),
-            Size = new Size(360, 28)
+            Location = new Point(84, 154),
+            Size = new Size(320, 24)
         };
 
         Label usernameLabel = ControlFactory.CreateInputLabel("Username");
-        usernameLabel.Location = new Point(78, 244);
-        _usernameTextBox.Location = new Point(78, 270);
-        _usernameTextBox.Width = 360;
+        usernameLabel.Location = new Point(84, 206);
+        _usernameTextBox.Location = new Point(84, 230);
+        _usernameTextBox.Width = 320;
 
         Label passwordLabel = ControlFactory.CreateInputLabel("Password");
-        passwordLabel.Location = new Point(78, 326);
-        _passwordTextBox.Location = new Point(78, 352);
-        _passwordTextBox.Width = 360;
+        passwordLabel.Location = new Point(84, 286);
+        _passwordTextBox.Location = new Point(84, 310);
+        _passwordTextBox.Width = 320;
 
-        Button loginButton = ControlFactory.CreatePrimaryButton("Login", 360, 42);
-        loginButton.Location = new Point(78, 420);
+        Button loginButton = ControlFactory.CreatePrimaryButton("Login", 320, 40);
+        loginButton.Location = new Point(84, 374);
         loginButton.Click += LoginButton_Click;
 
         brandingPanel.Controls.Add(carIcon);

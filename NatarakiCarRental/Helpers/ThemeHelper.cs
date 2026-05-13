@@ -5,7 +5,8 @@ namespace NatarakiCarRental.Helpers;
 
 public static class ThemeHelper
 {
-    public static readonly Size StandardFormSize = new(1280, 720);
+    public static readonly Size StandardMainFormSize = new(1280, 720);
+    public static readonly Size CompactDialogFormSize = new(860, 500);
 
     public static readonly Color Background = Color.FromArgb(242, 244, 255);
     public static readonly Color Surface = Color.White;
@@ -29,15 +30,26 @@ public static class ThemeHelper
         form.Font = FontHelper.Regular();
     }
 
-    public static void ApplyStandardFormSettings(Form form)
+    public static void ApplyStandardMainFormSettings(Form form)
     {
         ApplyFormDefaults(form);
 
         form.StartPosition = FormStartPosition.CenterScreen;
-        form.MinimumSize = StandardFormSize;
-        form.Size = StandardFormSize;
+        form.MinimumSize = StandardMainFormSize;
+        form.Size = StandardMainFormSize;
         form.FormBorderStyle = FormBorderStyle.FixedSingle;
         form.MaximizeBox = true;
+        form.MinimizeBox = true;
+    }
+
+    public static void ApplyCompactDialogFormSettings(Form form)
+    {
+        form.BackColor = Surface;
+        form.Font = FontHelper.Regular();
+        form.StartPosition = FormStartPosition.CenterScreen;
+        form.ClientSize = CompactDialogFormSize;
+        form.FormBorderStyle = FormBorderStyle.FixedSingle;
+        form.MaximizeBox = false;
         form.MinimizeBox = true;
     }
 }

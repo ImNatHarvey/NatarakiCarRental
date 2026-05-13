@@ -24,7 +24,7 @@ public sealed class MainForm : Form
     private void InitializeMainForm()
     {
         Text = AppConstants.ApplicationName;
-        ThemeHelper.ApplyStandardFormSettings(this);
+        ThemeHelper.ApplyStandardMainFormSettings(this);
 
         Panel sidebarPanel = new()
         {
