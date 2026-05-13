@@ -1,0 +1,43 @@
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace NatarakiCarRental.Helpers;
+
+public static class ThemeHelper
+{
+    public static readonly Size StandardFormSize = new(1280, 720);
+
+    public static readonly Color Background = Color.FromArgb(242, 244, 255);
+    public static readonly Color Surface = Color.White;
+    public static readonly Color Primary = Color.FromArgb(37, 99, 235);
+    public static readonly Color PrimaryHover = Color.FromArgb(29, 78, 216);
+    public static readonly Color Secondary = Color.FromArgb(219, 234, 254);
+    public static readonly Color TextPrimary = Color.FromArgb(30, 41, 59);
+    public static readonly Color TextSecondary = Color.FromArgb(100, 116, 139);
+    public static readonly Color Border = Color.FromArgb(226, 232, 240);
+    public static readonly Color Danger = Color.FromArgb(220, 38, 38);
+
+    public static readonly Color AppBackground = Background;
+    public static readonly Color SidebarBackground = Surface;
+    public static readonly Color Accent = Secondary;
+    public static readonly Color HeaderText = TextPrimary;
+    public static readonly Color MutedText = TextSecondary;
+
+    public static void ApplyFormDefaults(Form form)
+    {
+        form.BackColor = Background;
+        form.Font = FontHelper.Regular();
+    }
+
+    public static void ApplyStandardFormSettings(Form form)
+    {
+        ApplyFormDefaults(form);
+
+        form.StartPosition = FormStartPosition.CenterScreen;
+        form.MinimumSize = StandardFormSize;
+        form.Size = StandardFormSize;
+        form.FormBorderStyle = FormBorderStyle.FixedSingle;
+        form.MaximizeBox = true;
+        form.MinimizeBox = true;
+    }
+}
