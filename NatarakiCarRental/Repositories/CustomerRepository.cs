@@ -30,6 +30,7 @@ public sealed class CustomerRepository
                 PhoneNumber,
                 Address,
                 IsBlacklisted,
+                BlacklistReason,
                 IsArchived,
                 DriverLicensePath,
                 ProofOfBillingPath,
@@ -44,9 +45,10 @@ public sealed class CustomerRepository
         return await connection.QuerySingleOrDefaultAsync<Customer>(sql, new { CustomerId = customerId });
     }
 
-    public async Task<IReadOnlyList<Customer>> SearchCustomersAsync(string searchText, bool includeArchived)
+    public async Task<IReadOnlyList<Customer>> SearchCustomersAsync(string searchText, CustomerListFilter filter)
     {
         string normalizedSearchText = searchText?.Trim() ?? string.Empty;
+        bool includeBlacklistReason = filter == CustomerListFilter.Blacklisted;
 
         const string sql = """
             SELECT
@@ -57,6 +59,7 @@ public sealed class CustomerRepository
                 PhoneNumber,
                 Address,
                 IsBlacklisted,
+                BlacklistReason,
                 IsArchived,
                 DriverLicensePath,
                 ProofOfBillingPath,
@@ -64,13 +67,20 @@ public sealed class CustomerRepository
                 UpdatedAt,
                 ArchivedAt
             FROM dbo.Customers
-            WHERE IsArchived = @IsArchived
+            WHERE (
+                    (@Filter = 0 AND IsArchived = 0 AND IsBlacklisted = 0)
+                    OR (@Filter = 1 AND IsArchived = 0 AND IsBlacklisted = 1)
+                    OR (@Filter = 2 AND IsArchived = 1)
+                  )
               AND (
                     @SearchText = N''
                     OR FirstName LIKE @SearchPattern
                     OR LastName LIKE @SearchPattern
                     OR CONCAT(FirstName, N' ', LastName) LIKE @SearchPattern
                     OR Email LIKE @SearchPattern
+                    OR PhoneNumber LIKE @SearchPattern
+                    OR Address LIKE @SearchPattern
+                    OR (@IncludeBlacklistReason = 1 AND BlacklistReason LIKE @SearchPattern)
                   )
             ORDER BY CustomerId DESC;
             """;
@@ -80,7 +90,8 @@ public sealed class CustomerRepository
             sql,
             new
             {
-                IsArchived = includeArchived,
+                Filter = (int)filter,
+                IncludeBlacklistReason = includeBlacklistReason,
                 SearchText = normalizedSearchText,
                 SearchPattern = $"%{normalizedSearchText}%"
             });
@@ -139,6 +150,7 @@ public sealed class CustomerRepository
                 PhoneNumber,
                 Address,
                 IsBlacklisted,
+                BlacklistReason,
                 DriverLicensePath,
                 ProofOfBillingPath
             )
@@ -151,6 +163,7 @@ public sealed class CustomerRepository
                 @PhoneNumber,
                 @Address,
                 @IsBlacklisted,
+                @BlacklistReason,
                 @DriverLicensePath,
                 @ProofOfBillingPath
             );
@@ -170,6 +183,7 @@ public sealed class CustomerRepository
                     customer.PhoneNumber,
                     Address = NullIfWhiteSpace(customer.Address),
                     customer.IsBlacklisted,
+                    BlacklistReason = NullIfWhiteSpace(customer.BlacklistReason),
                     DriverLicensePath = NullIfWhiteSpace(customer.DriverLicensePath),
                     ProofOfBillingPath = NullIfWhiteSpace(customer.ProofOfBillingPath)
                 },
@@ -195,6 +209,7 @@ public sealed class CustomerRepository
                 PhoneNumber = @PhoneNumber,
                 Address = @Address,
                 IsBlacklisted = @IsBlacklisted,
+                BlacklistReason = @BlacklistReason,
                 DriverLicensePath = @DriverLicensePath,
                 ProofOfBillingPath = @ProofOfBillingPath,
                 UpdatedAt = sysdatetime()
@@ -216,6 +231,7 @@ public sealed class CustomerRepository
                     customer.PhoneNumber,
                     Address = NullIfWhiteSpace(customer.Address),
                     customer.IsBlacklisted,
+                    BlacklistReason = NullIfWhiteSpace(customer.BlacklistReason),
                     DriverLicensePath = NullIfWhiteSpace(customer.DriverLicensePath),
                     ProofOfBillingPath = NullIfWhiteSpace(customer.ProofOfBillingPath)
                 },
@@ -237,7 +253,8 @@ public sealed class CustomerRepository
             SET IsArchived = 1,
                 ArchivedAt = sysdatetime(),
                 UpdatedAt = sysdatetime()
-            WHERE CustomerId = @CustomerId;
+            WHERE CustomerId = @CustomerId
+              AND IsArchived = 0;
             """;
 
         IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
@@ -255,11 +272,42 @@ public sealed class CustomerRepository
         }
     }
 
-    public async Task<int> ToggleBlacklistAsync(int customerId, bool isBlacklisted, IDbTransaction? transaction = null)
+    public async Task<int> RestoreCustomerAsync(int customerId, IDbTransaction? transaction = null)
+    {
+        const string sql = """
+            UPDATE dbo.Customers
+            SET IsArchived = 0,
+                ArchivedAt = NULL,
+                UpdatedAt = sysdatetime()
+            WHERE CustomerId = @CustomerId
+              AND IsArchived = 1;
+            """;
+
+        IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
+
+        try
+        {
+            return await connection.ExecuteAsync(sql, new { CustomerId = customerId }, transaction);
+        }
+        finally
+        {
+            if (transaction is null)
+            {
+                connection.Dispose();
+            }
+        }
+    }
+
+    public async Task<int> ToggleBlacklistAsync(
+        int customerId,
+        bool isBlacklisted,
+        string? blacklistReason = null,
+        IDbTransaction? transaction = null)
     {
         const string sql = """
             UPDATE dbo.Customers
             SET IsBlacklisted = @IsBlacklisted,
+                BlacklistReason = @BlacklistReason,
                 UpdatedAt = sysdatetime()
             WHERE CustomerId = @CustomerId
               AND IsArchived = 0;
@@ -274,7 +322,8 @@ public sealed class CustomerRepository
                 new
                 {
                     CustomerId = customerId,
-                    IsBlacklisted = isBlacklisted
+                    IsBlacklisted = isBlacklisted,
+                    BlacklistReason = isBlacklisted ? NullIfWhiteSpace(blacklistReason) : null
                 },
                 transaction);
         }

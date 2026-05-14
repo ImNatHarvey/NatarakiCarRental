@@ -202,6 +202,7 @@ public static class DatabaseInitializer
                     PhoneNumber nvarchar(30) NOT NULL,
                     Address nvarchar(500) NULL,
                     IsBlacklisted bit NOT NULL DEFAULT 0,
+                    BlacklistReason nvarchar(255) NULL,
                     IsArchived bit NOT NULL DEFAULT 0,
                     DriverLicensePath nvarchar(500) NULL,
                     ProofOfBillingPath nvarchar(500) NULL,
@@ -212,6 +213,10 @@ public static class DatabaseInitializer
                     CONSTRAINT CK_Customers_FirstName_NotEmpty CHECK (LEN(LTRIM(RTRIM(FirstName))) > 0),
                     CONSTRAINT CK_Customers_LastName_NotEmpty CHECK (LEN(LTRIM(RTRIM(LastName))) > 0),
                     CONSTRAINT CK_Customers_PhoneNumber_NotEmpty CHECK (LEN(LTRIM(RTRIM(PhoneNumber))) > 0),
+                    CONSTRAINT CK_Customers_BlacklistReason_Valid CHECK (
+                        (IsBlacklisted = 0 AND BlacklistReason IS NULL)
+                        OR (IsBlacklisted = 1 AND LEN(LTRIM(RTRIM(ISNULL(BlacklistReason, N'')))) > 0)
+                    ),
                     CONSTRAINT CK_Customers_ArchivedAt_Valid CHECK (
                         (IsArchived = 0 AND ArchivedAt IS NULL)
                         OR (IsArchived = 1 AND ArchivedAt IS NOT NULL)
@@ -223,6 +228,26 @@ public static class DatabaseInitializer
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Customers', N'U') IS NOT NULL
             BEGIN
+                IF COL_LENGTH(N'dbo.Customers', N'BlacklistReason') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Customers ADD BlacklistReason nvarchar(255) NULL;
+                END;
+            END;
+            """);
+
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.Customers', N'U') IS NOT NULL
+            BEGIN
+                UPDATE dbo.Customers
+                SET BlacklistReason = N'Legacy blacklist record'
+                WHERE IsBlacklisted = 1
+                  AND (BlacklistReason IS NULL OR LEN(LTRIM(RTRIM(BlacklistReason))) = 0);
+
+                UPDATE dbo.Customers
+                SET BlacklistReason = NULL
+                WHERE IsBlacklisted = 0
+                  AND BlacklistReason IS NOT NULL;
+
                 IF OBJECT_ID(N'dbo.UQ_Customers_PhoneNumber', N'UQ') IS NULL
                 BEGIN
                     ALTER TABLE dbo.Customers WITH CHECK
@@ -245,6 +270,20 @@ public static class DatabaseInitializer
                 BEGIN
                     ALTER TABLE dbo.Customers WITH CHECK
                     ADD CONSTRAINT CK_Customers_PhoneNumber_NotEmpty CHECK (LEN(LTRIM(RTRIM(PhoneNumber))) > 0);
+                END;
+
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM sys.check_constraints
+                    WHERE name = N'CK_Customers_BlacklistReason_Valid'
+                      AND parent_object_id = OBJECT_ID(N'dbo.Customers')
+                )
+                BEGIN
+                    ALTER TABLE dbo.Customers WITH CHECK
+                    ADD CONSTRAINT CK_Customers_BlacklistReason_Valid CHECK (
+                        (IsBlacklisted = 0 AND BlacklistReason IS NULL)
+                        OR (IsBlacklisted = 1 AND LEN(LTRIM(RTRIM(ISNULL(BlacklistReason, N'')))) > 0)
+                    );
                 END;
 
                 IF OBJECT_ID(N'dbo.CK_Customers_ArchivedAt_Valid', N'C') IS NULL

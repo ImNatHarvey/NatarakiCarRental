@@ -2,6 +2,7 @@ using FontAwesome.Sharp;
 using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
 using NatarakiCarRental.UserControls.Cars;
+using NatarakiCarRental.UserControls.Customers;
 using NatarakiCarRental.UserControls.Dashboard;
 
 namespace NatarakiCarRental.Forms.Main;
@@ -133,6 +134,12 @@ public sealed class MainForm : Form
             return;
         }
 
+        if (pageName == "Customers")
+        {
+            ShowCustomers();
+            return;
+        }
+
         ShowPlaceholder(pageName);
     }
 
@@ -146,6 +153,12 @@ public sealed class MainForm : Form
     {
         LoadContent(new CarGarageControl());
         SetActiveNavigation("Car Garage");
+    }
+
+    private void ShowCustomers()
+    {
+        LoadContent(new CustomerControl());
+        SetActiveNavigation("Customers");
     }
 
     private void ShowPlaceholder(string pageName)

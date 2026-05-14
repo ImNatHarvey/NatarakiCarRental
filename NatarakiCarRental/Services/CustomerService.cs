@@ -45,9 +45,9 @@ public sealed class CustomerService
         return _customerRepository.GetCustomerByIdAsync(customerId);
     }
 
-    public Task<IReadOnlyList<Customer>> SearchCustomersAsync(string searchText, bool includeArchived)
+    public Task<IReadOnlyList<Customer>> SearchCustomersAsync(string searchText, CustomerListFilter filter)
     {
-        return _customerRepository.SearchCustomersAsync(searchText, includeArchived);
+        return _customerRepository.SearchCustomersAsync(searchText, filter);
     }
 
     public Task<CustomerCounts> GetCustomerCountsAsync()
@@ -157,7 +157,7 @@ public sealed class CustomerService
 
             if (affectedRows == 0)
             {
-                throw new RecordNotFoundException($"Customer record #{customerId} was not found.");
+            throw new RecordNotFoundException($"Customer record #{customerId} was not found or is already archived.");
             }
 
             await _activityLogService.LogAsync(
@@ -176,7 +176,7 @@ public sealed class CustomerService
         }
     }
 
-    public async Task ToggleBlacklistAsync(int customerId, bool isBlacklisted)
+    public async Task RestoreCustomerAsync(int customerId)
     {
         Customer? customer = await _customerRepository.GetCustomerByIdAsync(customerId);
         await using SqlConnection connection = await _connectionFactory.CreateOpenConnectionAsync();
@@ -184,7 +184,46 @@ public sealed class CustomerService
 
         try
         {
-            int affectedRows = await _customerRepository.ToggleBlacklistAsync(customerId, isBlacklisted, transaction);
+            int affectedRows = await _customerRepository.RestoreCustomerAsync(customerId, transaction);
+
+            if (affectedRows == 0)
+            {
+                throw new RecordNotFoundException($"Customer record #{customerId} was not found or is not archived.");
+            }
+
+            await _activityLogService.LogAsync(
+                "Restore customer",
+                "Customer",
+                customerId,
+                $"Restored customer {DescribeCustomer(customer, customerId)}.",
+                transaction: transaction);
+
+            transaction.Commit();
+        }
+        catch
+        {
+            RollbackQuietly(transaction);
+            throw;
+        }
+    }
+
+    public async Task ToggleBlacklistAsync(int customerId, bool isBlacklisted, string? reason = null)
+    {
+        reason = NullIfWhiteSpace(reason);
+
+        if (isBlacklisted && string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ValidationException(
+                [new ValidationFailure(nameof(Customer.BlacklistReason), "Blacklist reason is required.")]);
+        }
+
+        Customer? customer = await _customerRepository.GetCustomerByIdAsync(customerId);
+        await using SqlConnection connection = await _connectionFactory.CreateOpenConnectionAsync();
+        using SqlTransaction transaction = connection.BeginTransaction();
+
+        try
+        {
+            int affectedRows = await _customerRepository.ToggleBlacklistAsync(customerId, isBlacklisted, reason, transaction);
 
             if (affectedRows == 0)
             {
@@ -193,7 +232,7 @@ public sealed class CustomerService
 
             string action = isBlacklisted ? "Blacklist customer" : "Remove customer blacklist";
             string description = isBlacklisted
-                ? $"Blacklisted customer {DescribeCustomer(customer, customerId)}."
+                ? $"Blacklisted customer {DescribeCustomer(customer, customerId)}. Reason: {reason}"
                 : $"Removed blacklist flag from customer {DescribeCustomer(customer, customerId)}.";
 
             await _activityLogService.LogAsync(
@@ -219,6 +258,7 @@ public sealed class CustomerService
         customer.Email = NullIfWhiteSpace(customer.Email);
         customer.PhoneNumber = customer.PhoneNumber?.Trim() ?? string.Empty;
         customer.Address = NullIfWhiteSpace(customer.Address);
+        customer.BlacklistReason = customer.IsBlacklisted ? NullIfWhiteSpace(customer.BlacklistReason) : null;
         customer.DriverLicensePath = NullIfWhiteSpace(customer.DriverLicensePath);
         customer.ProofOfBillingPath = NullIfWhiteSpace(customer.ProofOfBillingPath);
     }

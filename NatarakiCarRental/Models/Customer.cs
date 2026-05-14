@@ -9,6 +9,7 @@ public sealed class Customer
     public string PhoneNumber { get; set; } = string.Empty;
     public string? Address { get; set; }
     public bool IsBlacklisted { get; set; }
+    public string? BlacklistReason { get; set; }
     public bool IsArchived { get; set; }
     public string? DriverLicensePath { get; set; }
     public string? ProofOfBillingPath { get; set; }
