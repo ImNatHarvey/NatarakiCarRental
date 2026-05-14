@@ -42,6 +42,11 @@ public sealed class CarValidator : AbstractValidator<Car>
             .When(car => car.SeatingCapacity.HasValue)
             .WithMessage("Seating capacity must be greater than 0.");
 
+        RuleFor(car => car.Mileage)
+            .GreaterThanOrEqualTo(0)
+            .When(car => car.Mileage.HasValue)
+            .WithMessage("Mileage cannot be a negative number.");
+
         RuleFor(car => car.Status)
             .NotEmpty()
             .WithMessage("Status is required.");

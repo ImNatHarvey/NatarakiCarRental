@@ -92,6 +92,7 @@ public static class DatabaseInitializer
                     RatePerDay decimal(18,2) NOT NULL,
                     Status nvarchar(30) NOT NULL DEFAULT N'Available',
                     CodingDay nvarchar(30) NULL,
+                    Mileage int NULL,
                     RegistrationExpirationDate date NULL,
                     InsuranceExpirationDate date NULL,
                     ImagePath nvarchar(500) NULL,
@@ -110,6 +111,11 @@ public static class DatabaseInitializer
                 IF COL_LENGTH(N'dbo.Cars', N'CodingDay') IS NULL
                 BEGIN
                     ALTER TABLE dbo.Cars ADD CodingDay nvarchar(30) NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.Cars', N'Mileage') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Cars ADD Mileage int NULL;
                 END;
 
                 IF COL_LENGTH(N'dbo.Cars', N'RegistrationExpirationDate') IS NULL
