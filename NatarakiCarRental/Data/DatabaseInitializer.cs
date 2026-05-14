@@ -191,6 +191,74 @@ public static class DatabaseInitializer
             """);
 
         ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.Customers', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.Customers
+                (
+                    CustomerId int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    FirstName nvarchar(100) NOT NULL,
+                    LastName nvarchar(100) NOT NULL,
+                    Email nvarchar(150) NULL,
+                    PhoneNumber nvarchar(30) NOT NULL,
+                    Address nvarchar(500) NULL,
+                    IsBlacklisted bit NOT NULL DEFAULT 0,
+                    IsArchived bit NOT NULL DEFAULT 0,
+                    DriverLicensePath nvarchar(500) NULL,
+                    ProofOfBillingPath nvarchar(500) NULL,
+                    CreatedAt datetime2 NOT NULL DEFAULT sysdatetime(),
+                    UpdatedAt datetime2 NULL,
+                    ArchivedAt datetime2 NULL,
+                    CONSTRAINT UQ_Customers_PhoneNumber UNIQUE (PhoneNumber),
+                    CONSTRAINT CK_Customers_FirstName_NotEmpty CHECK (LEN(LTRIM(RTRIM(FirstName))) > 0),
+                    CONSTRAINT CK_Customers_LastName_NotEmpty CHECK (LEN(LTRIM(RTRIM(LastName))) > 0),
+                    CONSTRAINT CK_Customers_PhoneNumber_NotEmpty CHECK (LEN(LTRIM(RTRIM(PhoneNumber))) > 0),
+                    CONSTRAINT CK_Customers_ArchivedAt_Valid CHECK (
+                        (IsArchived = 0 AND ArchivedAt IS NULL)
+                        OR (IsArchived = 1 AND ArchivedAt IS NOT NULL)
+                    )
+                );
+            END;
+            """);
+
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.Customers', N'U') IS NOT NULL
+            BEGIN
+                IF OBJECT_ID(N'dbo.UQ_Customers_PhoneNumber', N'UQ') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Customers WITH CHECK
+                    ADD CONSTRAINT UQ_Customers_PhoneNumber UNIQUE (PhoneNumber);
+                END;
+
+                IF OBJECT_ID(N'dbo.CK_Customers_FirstName_NotEmpty', N'C') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Customers WITH CHECK
+                    ADD CONSTRAINT CK_Customers_FirstName_NotEmpty CHECK (LEN(LTRIM(RTRIM(FirstName))) > 0);
+                END;
+
+                IF OBJECT_ID(N'dbo.CK_Customers_LastName_NotEmpty', N'C') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Customers WITH CHECK
+                    ADD CONSTRAINT CK_Customers_LastName_NotEmpty CHECK (LEN(LTRIM(RTRIM(LastName))) > 0);
+                END;
+
+                IF OBJECT_ID(N'dbo.CK_Customers_PhoneNumber_NotEmpty', N'C') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Customers WITH CHECK
+                    ADD CONSTRAINT CK_Customers_PhoneNumber_NotEmpty CHECK (LEN(LTRIM(RTRIM(PhoneNumber))) > 0);
+                END;
+
+                IF OBJECT_ID(N'dbo.CK_Customers_ArchivedAt_Valid', N'C') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Customers WITH CHECK
+                    ADD CONSTRAINT CK_Customers_ArchivedAt_Valid CHECK (
+                        (IsArchived = 0 AND ArchivedAt IS NULL)
+                        OR (IsArchived = 1 AND ArchivedAt IS NOT NULL)
+                    );
+                END;
+            END;
+            """);
+
+        ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Cars', N'U') IS NOT NULL
                AND NOT EXISTS (
                     SELECT 1
@@ -229,6 +297,20 @@ public static class DatabaseInitializer
             BEGIN
                 CREATE NONCLUSTERED INDEX IX_ActivityLogs_CreatedAt
                 ON dbo.ActivityLogs (CreatedAt DESC);
+            END;
+            """);
+
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.Customers', N'U') IS NOT NULL
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = N'IX_Customers_IsArchived_IsBlacklisted'
+                      AND object_id = OBJECT_ID(N'dbo.Customers')
+               )
+            BEGIN
+                CREATE NONCLUSTERED INDEX IX_Customers_IsArchived_IsBlacklisted
+                ON dbo.Customers (IsArchived, IsBlacklisted);
             END;
             """);
     }
