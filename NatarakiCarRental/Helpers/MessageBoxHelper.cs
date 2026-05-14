@@ -33,12 +33,17 @@ public static class MessageBoxHelper
 
     public static bool Confirm(string message, string title = AppConstants.ApplicationName)
     {
-        return ShowConfirmWarning(message, title);
+        return ShowConfirmDanger(message, title);
     }
 
     public static bool ShowConfirmWarning(string message, string title = "Warning")
     {
         return ShowConfirmation(message, title, IconChar.TriangleExclamation, ThemeHelper.Warning);
+    }
+
+    public static bool ShowConfirmDanger(string message, string title = "Confirm Action")
+    {
+        return ShowConfirmation(message, title, IconChar.TriangleExclamation, ThemeHelper.Danger);
     }
 
     private static void ShowDialog(string message, string title, IconChar icon, Color accentColor)

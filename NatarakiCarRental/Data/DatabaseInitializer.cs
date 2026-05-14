@@ -91,6 +91,9 @@ public static class DatabaseInitializer
                     SeatingCapacity int NULL,
                     RatePerDay decimal(18,2) NOT NULL,
                     Status nvarchar(30) NOT NULL DEFAULT N'Available',
+                    CodingDay nvarchar(30) NULL,
+                    RegistrationExpirationDate date NULL,
+                    InsuranceExpirationDate date NULL,
                     ImagePath nvarchar(500) NULL,
                     OrCrPath nvarchar(500) NULL,
                     IsArchived bit NOT NULL DEFAULT 0,
@@ -98,6 +101,26 @@ public static class DatabaseInitializer
                     UpdatedAt datetime2 NULL,
                     ArchivedAt datetime2 NULL
                 );
+            END;
+            """);
+
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.Cars', N'U') IS NOT NULL
+            BEGIN
+                IF COL_LENGTH(N'dbo.Cars', N'CodingDay') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Cars ADD CodingDay nvarchar(30) NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.Cars', N'RegistrationExpirationDate') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Cars ADD RegistrationExpirationDate date NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.Cars', N'InsuranceExpirationDate') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Cars ADD InsuranceExpirationDate date NULL;
+                END;
             END;
             """);
 

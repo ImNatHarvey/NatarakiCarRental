@@ -1,4 +1,5 @@
 using FontAwesome.Sharp;
+using System.Globalization;
 using NatarakiCarRental.Forms.Cars;
 using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
@@ -14,7 +15,9 @@ public sealed class CarGarageControl : UserControl
     private readonly MetricCardControl _availableCarsCard = new();
     private readonly MetricCardControl _rentedCarsCard = new();
     private readonly MetricCardControl _archivedCarsCard = new();
-    private readonly TextBox _searchTextBox = ControlFactory.CreateTextBox(380);
+    private static readonly CultureInfo PhilippineCulture = new("en-PH");
+
+    private readonly TextBox _searchTextBox = ControlFactory.CreateTextBox(300);
     private readonly IconButton _activeCarsButton = new();
     private readonly IconButton _archivedCarsButton = new();
     private readonly DataGridView _carsGrid = new();
@@ -177,11 +180,22 @@ public sealed class CarGarageControl : UserControl
             BackColor = ThemeHelper.ContentBackground
         };
 
-        _searchTextBox.PlaceholderText = "Search by car name, model, or plate number";
-        _searchTextBox.Location = new Point(0, 8);
-        _searchTextBox.Width = 380;
+        IconPictureBox searchIcon = new()
+        {
+            IconChar = IconChar.MagnifyingGlass,
+            IconColor = ThemeHelper.TextSecondary,
+            IconSize = 16,
+            BackColor = ThemeHelper.ContentBackground,
+            Location = new Point(2, 15),
+            Size = new Size(20, 20)
+        };
+
+        _searchTextBox.PlaceholderText = "Search cars";
+        _searchTextBox.Location = new Point(28, 8);
+        _searchTextBox.Width = 300;
         _searchTextBox.TextChanged += async (_, _) => await LoadCarsAsync();
 
+        panel.Controls.Add(searchIcon);
         panel.Controls.Add(_searchTextBox);
 
         return panel;
@@ -224,8 +238,6 @@ public sealed class CarGarageControl : UserControl
         _carsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _carsGrid.CellContentClick += CarsGrid_CellContentClick;
 
-        AddGridColumns();
-
         _emptyStateLabel.Text = "No car records found.";
         _emptyStateLabel.Dock = DockStyle.Bottom;
         _emptyStateLabel.Height = 42;
@@ -248,11 +260,50 @@ public sealed class CarGarageControl : UserControl
         _carsGrid.Columns.Add("Model", "Model");
         _carsGrid.Columns.Add("PlateNumber", "Plate Number");
         _carsGrid.Columns.Add("RatePerDay", "Rate/Day");
+        _carsGrid.Columns.Add("CodingDay", "Coding Day");
         _carsGrid.Columns.Add("Status", "Status");
 
         AddActionColumn("ViewAction", "View", "View");
-        AddActionColumn("EditAction", "Edit", "Edit");
-        AddActionColumn("ArchiveAction", "Archive", "Archive");
+
+        if (_showArchived)
+        {
+            AddActionColumn("RestoreAction", "Restore", "Restore");
+        }
+        else
+        {
+            AddActionColumn("EditAction", "Edit", "Edit");
+            AddActionColumn("ArchiveAction", "Archive", "Archive");
+        }
+
+        if (_carsGrid.Columns["CarId"] is DataGridViewColumn carIdColumn)
+        {
+            carIdColumn.Visible = false;
+        }
+
+        if (_carsGrid.Columns["RatePerDay"] is DataGridViewColumn rateColumn)
+        {
+            rateColumn.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        }
+
+        if (_carsGrid.Columns["ViewAction"] is DataGridViewColumn viewColumn)
+        {
+            viewColumn.FillWeight = 55;
+        }
+
+        if (_carsGrid.Columns["EditAction"] is DataGridViewColumn editColumn)
+        {
+            editColumn.FillWeight = 55;
+        }
+
+        if (_carsGrid.Columns["ArchiveAction"] is DataGridViewColumn archiveColumn)
+        {
+            archiveColumn.FillWeight = 65;
+        }
+
+        if (_carsGrid.Columns["RestoreAction"] is DataGridViewColumn restoreColumn)
+        {
+            restoreColumn.FillWeight = 70;
+        }
     }
 
     private void AddActionColumn(string name, string headerText, string buttonText)
@@ -297,6 +348,7 @@ public sealed class CarGarageControl : UserControl
 
     private void PopulateGrid(IReadOnlyList<Car> cars)
     {
+        AddGridColumns();
         _carsGrid.Rows.Clear();
 
         foreach (Car car in cars)
@@ -306,7 +358,8 @@ public sealed class CarGarageControl : UserControl
                 car.CarName,
                 car.Model,
                 car.PlateNumber,
-                car.RatePerDay.ToString("C"),
+                car.RatePerDay.ToString("C", PhilippineCulture),
+                string.IsNullOrWhiteSpace(car.CodingDay) ? "-" : car.CodingDay,
                 car.Status);
         }
 
@@ -326,7 +379,7 @@ public sealed class CarGarageControl : UserControl
         button.IconColor = isActive ? Color.White : ThemeHelper.TextSecondary;
     }
 
-    private void CarsGrid_CellContentClick(object? sender, DataGridViewCellEventArgs e)
+    private async void CarsGrid_CellContentClick(object? sender, DataGridViewCellEventArgs e)
     {
         if (e.RowIndex < 0)
         {
@@ -335,21 +388,122 @@ public sealed class CarGarageControl : UserControl
 
         string columnName = _carsGrid.Columns[e.ColumnIndex].Name;
 
-        if (columnName is "ViewAction" or "EditAction" or "ArchiveAction")
+        int carId = Convert.ToInt32(_carsGrid.Rows[e.RowIndex].Cells["CarId"].Value);
+
+        if (columnName == "ViewAction")
         {
-            string actionName = columnName.Replace("Action", string.Empty);
-            MessageBoxHelper.ShowInfo($"{actionName} car feature is coming next.");
+            await ViewCarAsync(carId);
+            return;
+        }
+
+        if (columnName == "EditAction")
+        {
+            await EditCarAsync(carId);
+            return;
+        }
+
+        if (columnName == "ArchiveAction")
+        {
+            await ArchiveCarAsync(carId);
+            return;
+        }
+
+        if (columnName == "RestoreAction")
+        {
+            await RestoreCarAsync(carId);
         }
     }
 
     private async void AddCarButton_Click(object? sender, EventArgs e)
     {
-        using AddCarForm addCarForm = new();
+        using CarDetailsForm addCarForm = new(CarFormMode.Add);
 
         if (addCarForm.ShowDialog(this) == DialogResult.OK)
         {
             _showArchived = false;
             await LoadCarsAsync();
         }
+    }
+
+    private async Task ViewCarAsync(int carId)
+    {
+        Car? car = await _carService.GetCarByIdAsync(carId);
+
+        if (car is null)
+        {
+            MessageBoxHelper.ShowWarning("The selected car record no longer exists.");
+            await LoadCarsAsync();
+            return;
+        }
+
+        using CarDetailsForm form = new(CarFormMode.View, car);
+        form.ShowDialog(this);
+    }
+
+    private async Task EditCarAsync(int carId)
+    {
+        Car? car = await _carService.GetCarByIdAsync(carId);
+
+        if (car is null)
+        {
+            MessageBoxHelper.ShowWarning("The selected car record no longer exists.");
+            await LoadCarsAsync();
+            return;
+        }
+
+        using CarDetailsForm form = new(CarFormMode.Edit, car);
+
+        if (form.ShowDialog(this) == DialogResult.OK)
+        {
+            await LoadCarsAsync();
+        }
+    }
+
+    private async Task ArchiveCarAsync(int carId)
+    {
+        Car? car = await _carService.GetCarByIdAsync(carId);
+
+        if (car is null)
+        {
+            MessageBoxHelper.ShowWarning("The selected car record no longer exists.");
+            await LoadCarsAsync();
+            return;
+        }
+
+        bool confirmed = MessageBoxHelper.ShowConfirmDanger(
+            $"Archive {car.CarName} ({car.PlateNumber})? This will hide it from active car lists.",
+            "Archive Car");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        await _carService.ArchiveCarAsync(carId);
+        await LoadCarsAsync();
+    }
+
+    private async Task RestoreCarAsync(int carId)
+    {
+        Car? car = await _carService.GetCarByIdAsync(carId);
+
+        if (car is null)
+        {
+            MessageBoxHelper.ShowWarning("The selected car record no longer exists.");
+            await LoadCarsAsync();
+            return;
+        }
+
+        bool confirmed = MessageBoxHelper.ShowConfirmWarning(
+            $"Restore {car.CarName} ({car.PlateNumber}) to the active car list?",
+            "Restore Car");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        await _carService.RestoreCarAsync(carId);
+        await LoadCarsAsync();
     }
 }

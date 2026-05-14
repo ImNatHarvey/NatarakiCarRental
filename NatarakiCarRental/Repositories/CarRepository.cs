@@ -44,6 +44,9 @@ public sealed class CarRepository
                 SeatingCapacity,
                 RatePerDay,
                 Status,
+                CodingDay,
+                RegistrationExpirationDate,
+                InsuranceExpirationDate,
                 ImagePath,
                 OrCrPath,
                 IsArchived,
@@ -74,6 +77,39 @@ public sealed class CarRepository
         return cars.ToList();
     }
 
+    public async Task<Car?> GetCarByIdAsync(int carId)
+    {
+        const string sql = """
+            SELECT
+                CarId,
+                CarName,
+                Brand,
+                Model,
+                PlateNumber,
+                [Year],
+                Color,
+                Transmission,
+                FuelType,
+                SeatingCapacity,
+                RatePerDay,
+                Status,
+                CodingDay,
+                RegistrationExpirationDate,
+                InsuranceExpirationDate,
+                ImagePath,
+                OrCrPath,
+                IsArchived,
+                CreatedAt,
+                UpdatedAt,
+                ArchivedAt
+            FROM dbo.Cars
+            WHERE CarId = @CarId;
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QuerySingleOrDefaultAsync<Car>(sql, new { CarId = carId });
+    }
+
     public async Task<CarCounts> GetCarCountsAsync()
     {
         const string sql = """
@@ -91,16 +127,23 @@ public sealed class CarRepository
         return counts ?? new CarCounts();
     }
 
-    public async Task<bool> PlateNumberExistsAsync(string plateNumber)
+    public async Task<bool> PlateNumberExistsAsync(string plateNumber, int? excludingCarId = null)
     {
         const string sql = """
             SELECT COUNT(1)
             FROM dbo.Cars
-            WHERE PlateNumber = @PlateNumber;
+            WHERE PlateNumber = @PlateNumber
+              AND (@ExcludingCarId IS NULL OR CarId <> @ExcludingCarId);
             """;
 
         using var connection = _connectionFactory.CreateConnection();
-        int count = await connection.ExecuteScalarAsync<int>(sql, new { PlateNumber = plateNumber.Trim().ToUpperInvariant() });
+        int count = await connection.ExecuteScalarAsync<int>(
+            sql,
+            new
+            {
+                PlateNumber = plateNumber.Trim().ToUpperInvariant(),
+                ExcludingCarId = excludingCarId
+            });
 
         return count > 0;
     }
@@ -121,6 +164,9 @@ public sealed class CarRepository
                 SeatingCapacity,
                 RatePerDay,
                 Status,
+                CodingDay,
+                RegistrationExpirationDate,
+                InsuranceExpirationDate,
                 ImagePath,
                 OrCrPath
             )
@@ -138,6 +184,9 @@ public sealed class CarRepository
                 @SeatingCapacity,
                 @RatePerDay,
                 @Status,
+                @CodingDay,
+                @RegistrationExpirationDate,
+                @InsuranceExpirationDate,
                 @ImagePath,
                 @OrCrPath
             );
@@ -159,9 +208,90 @@ public sealed class CarRepository
                 car.SeatingCapacity,
                 car.RatePerDay,
                 car.Status,
+                CodingDay = NullIfWhiteSpace(car.CodingDay),
+                car.RegistrationExpirationDate,
+                car.InsuranceExpirationDate,
                 ImagePath = NullIfWhiteSpace(car.ImagePath),
                 OrCrPath = NullIfWhiteSpace(car.OrCrPath)
             });
+    }
+
+    public async Task UpdateCarAsync(Car car)
+    {
+        const string sql = """
+            UPDATE dbo.Cars
+            SET
+                CarName = @CarName,
+                Brand = @Brand,
+                Model = @Model,
+                PlateNumber = @PlateNumber,
+                [Year] = @Year,
+                Color = @Color,
+                Transmission = @Transmission,
+                FuelType = @FuelType,
+                SeatingCapacity = @SeatingCapacity,
+                RatePerDay = @RatePerDay,
+                Status = @Status,
+                CodingDay = @CodingDay,
+                RegistrationExpirationDate = @RegistrationExpirationDate,
+                InsuranceExpirationDate = @InsuranceExpirationDate,
+                ImagePath = @ImagePath,
+                OrCrPath = @OrCrPath,
+                UpdatedAt = sysdatetime()
+            WHERE CarId = @CarId;
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ExecuteAsync(
+            sql,
+            new
+            {
+                car.CarId,
+                car.CarName,
+                Brand = NullIfWhiteSpace(car.Brand),
+                car.Model,
+                PlateNumber = car.PlateNumber.Trim().ToUpperInvariant(),
+                car.Year,
+                Color = NullIfWhiteSpace(car.Color),
+                Transmission = NullIfWhiteSpace(car.Transmission),
+                FuelType = NullIfWhiteSpace(car.FuelType),
+                car.SeatingCapacity,
+                car.RatePerDay,
+                car.Status,
+                CodingDay = NullIfWhiteSpace(car.CodingDay),
+                car.RegistrationExpirationDate,
+                car.InsuranceExpirationDate,
+                ImagePath = NullIfWhiteSpace(car.ImagePath),
+                OrCrPath = NullIfWhiteSpace(car.OrCrPath)
+            });
+    }
+
+    public async Task ArchiveCarAsync(int carId)
+    {
+        const string sql = """
+            UPDATE dbo.Cars
+            SET IsArchived = 1,
+                ArchivedAt = sysdatetime(),
+                UpdatedAt = sysdatetime()
+            WHERE CarId = @CarId;
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ExecuteAsync(sql, new { CarId = carId });
+    }
+
+    public async Task RestoreCarAsync(int carId)
+    {
+        const string sql = """
+            UPDATE dbo.Cars
+            SET IsArchived = 0,
+                ArchivedAt = NULL,
+                UpdatedAt = sysdatetime()
+            WHERE CarId = @CarId;
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ExecuteAsync(sql, new { CarId = carId });
     }
 
     private static string? NullIfWhiteSpace(string? value)

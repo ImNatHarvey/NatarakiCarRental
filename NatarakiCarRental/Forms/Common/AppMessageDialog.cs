@@ -64,21 +64,23 @@ public sealed class AppMessageDialog : Form
             ForeColor = ThemeHelper.TextSecondary
         };
 
+        // Primary Button ("Yes" or "OK") is now always on the right
         Button primaryButton = ControlFactory.CreatePrimaryButton(isConfirmation ? "Yes" : "OK", 92, 34);
         primaryButton.BackColor = accentColor;
         primaryButton.FlatAppearance.MouseOverBackColor = accentColor;
-        primaryButton.Location = new Point(isConfirmation ? 204 : 306, 138);
+        primaryButton.Location = new Point(306, 138);
         primaryButton.DialogResult = isConfirmation ? DialogResult.Yes : DialogResult.OK;
 
         Button? secondaryButton = null;
 
         if (isConfirmation)
         {
+            // Secondary Button ("No") is now on the left
             secondaryButton = new Button
             {
                 Text = "No",
                 Size = new Size(92, 34),
-                Location = new Point(306, 138),
+                Location = new Point(204, 138),
                 BackColor = ThemeHelper.Surface,
                 ForeColor = ThemeHelper.TextPrimary,
                 Font = FontHelper.SemiBold(),

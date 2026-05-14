@@ -14,6 +14,10 @@ public sealed class Car
     public int? SeatingCapacity { get; set; }
     public decimal RatePerDay { get; set; }
     public string Status { get; set; } = "Available";
+    public string? CodingDay { get; set; }
+    public int? Mileage { get; set; }
+    public DateTime? RegistrationExpirationDate { get; set; }
+    public DateTime? InsuranceExpirationDate { get; set; }
     public string? ImagePath { get; set; }
     public string? OrCrPath { get; set; }
     public bool IsArchived { get; set; }
