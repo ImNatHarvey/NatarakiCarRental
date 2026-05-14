@@ -1,5 +1,7 @@
+using System.Data;
 using Dapper;
 using NatarakiCarRental.Data;
+using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
 
 namespace NatarakiCarRental.Repositories;
@@ -30,6 +32,8 @@ public sealed class CarRepository
 
     public async Task<IReadOnlyList<Car>> SearchCarsAsync(string searchText, bool includeArchived)
     {
+        string normalizedSearchText = searchText?.Trim() ?? string.Empty;
+
         const string sql = """
             SELECT
                 CarId,
@@ -71,8 +75,8 @@ public sealed class CarRepository
             new
             {
                 IsArchived = includeArchived,
-                SearchText = searchText.Trim(),
-                SearchPattern = $"%{searchText.Trim()}%"
+                SearchText = normalizedSearchText,
+                SearchPattern = $"%{normalizedSearchText}%"
             });
 
         return cars.ToList();
@@ -117,20 +121,28 @@ public sealed class CarRepository
         const string sql = """
             SELECT
                 TotalCars = COUNT(CASE WHEN IsArchived = 0 THEN 1 END),
-                AvailableCars = COUNT(CASE WHEN IsArchived = 0 AND Status = N'Available' THEN 1 END),
-                RentedCars = COUNT(CASE WHEN IsArchived = 0 AND Status = N'Rented' THEN 1 END),
+                AvailableCars = COUNT(CASE WHEN IsArchived = 0 AND Status = @AvailableStatus THEN 1 END),
+                RentedCars = COUNT(CASE WHEN IsArchived = 0 AND Status = @RentedStatus THEN 1 END),
                 ArchivedCars = COUNT(CASE WHEN IsArchived = 1 THEN 1 END)
             FROM dbo.Cars;
             """;
 
         using var connection = _connectionFactory.CreateConnection();
-        CarCounts? counts = await connection.QuerySingleOrDefaultAsync<CarCounts>(sql);
+        CarCounts? counts = await connection.QuerySingleOrDefaultAsync<CarCounts>(
+            sql,
+            new
+            {
+                AvailableStatus = CarConstants.Status.Available,
+                RentedStatus = CarConstants.Status.Rented
+            });
 
         return counts ?? new CarCounts();
     }
 
     public async Task<bool> PlateNumberExistsAsync(string plateNumber, int? excludingCarId = null)
     {
+        string normalizedPlateNumber = (plateNumber ?? string.Empty).Trim().ToUpperInvariant();
+
         const string sql = """
             SELECT COUNT(1)
             FROM dbo.Cars
@@ -143,14 +155,14 @@ public sealed class CarRepository
             sql,
             new
             {
-                PlateNumber = plateNumber.Trim().ToUpperInvariant(),
+                PlateNumber = normalizedPlateNumber,
                 ExcludingCarId = excludingCarId
             });
 
         return count > 0;
     }
 
-    public async Task<int> AddCarAsync(Car car)
+    public async Task<int> AddCarAsync(Car car, IDbTransaction? transaction = null)
     {
         const string sql = """
             INSERT INTO dbo.Cars
@@ -196,8 +208,11 @@ public sealed class CarRepository
             );
             """;
 
-        using var connection = _connectionFactory.CreateConnection();
-        return await connection.ExecuteScalarAsync<int>(
+        IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
+
+        try
+        {
+            return await connection.ExecuteScalarAsync<int>(
             sql,
             new
             {
@@ -218,10 +233,19 @@ public sealed class CarRepository
                 car.InsuranceExpirationDate,
                 ImagePath = NullIfWhiteSpace(car.ImagePath),
                 OrCrPath = NullIfWhiteSpace(car.OrCrPath)
-            });
+            },
+            transaction);
+        }
+        finally
+        {
+            if (transaction is null)
+            {
+                connection.Dispose();
+            }
+        }
     }
 
-    public async Task UpdateCarAsync(Car car)
+    public async Task<int> UpdateCarAsync(Car car, IDbTransaction? transaction = null)
     {
         const string sql = """
             UPDATE dbo.Cars
@@ -247,8 +271,11 @@ public sealed class CarRepository
             WHERE CarId = @CarId;
             """;
 
-        using var connection = _connectionFactory.CreateConnection();
-        await connection.ExecuteAsync(
+        IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
+
+        try
+        {
+            return await connection.ExecuteAsync(
             sql,
             new
             {
@@ -270,10 +297,19 @@ public sealed class CarRepository
                 car.InsuranceExpirationDate,
                 ImagePath = NullIfWhiteSpace(car.ImagePath),
                 OrCrPath = NullIfWhiteSpace(car.OrCrPath)
-            });
+            },
+            transaction);
+        }
+        finally
+        {
+            if (transaction is null)
+            {
+                connection.Dispose();
+            }
+        }
     }
 
-    public async Task ArchiveCarAsync(int carId)
+    public async Task<int> ArchiveCarAsync(int carId, IDbTransaction? transaction = null)
     {
         const string sql = """
             UPDATE dbo.Cars
@@ -283,11 +319,22 @@ public sealed class CarRepository
             WHERE CarId = @CarId;
             """;
 
-        using var connection = _connectionFactory.CreateConnection();
-        await connection.ExecuteAsync(sql, new { CarId = carId });
+        IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
+
+        try
+        {
+            return await connection.ExecuteAsync(sql, new { CarId = carId }, transaction);
+        }
+        finally
+        {
+            if (transaction is null)
+            {
+                connection.Dispose();
+            }
+        }
     }
 
-    public async Task RestoreCarAsync(int carId)
+    public async Task<int> RestoreCarAsync(int carId, IDbTransaction? transaction = null)
     {
         const string sql = """
             UPDATE dbo.Cars
@@ -297,8 +344,19 @@ public sealed class CarRepository
             WHERE CarId = @CarId;
             """;
 
-        using var connection = _connectionFactory.CreateConnection();
-        await connection.ExecuteAsync(sql, new { CarId = carId });
+        IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
+
+        try
+        {
+            return await connection.ExecuteAsync(sql, new { CarId = carId }, transaction);
+        }
+        finally
+        {
+            if (transaction is null)
+            {
+                connection.Dispose();
+            }
+        }
     }
 
     private static string? NullIfWhiteSpace(string? value)

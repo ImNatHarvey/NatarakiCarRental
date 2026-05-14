@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using NatarakiCarRental.Data;
 
@@ -17,7 +18,13 @@ public sealed class ActivityLogService
         _connectionFactory = connectionFactory;
     }
 
-    public async Task LogAsync(string actionType, string entityName, int? entityId, string description, int? userId = null)
+    public async Task LogAsync(
+        string actionType,
+        string entityName,
+        int? entityId,
+        string description,
+        int? userId = null,
+        IDbTransaction? transaction = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(actionType);
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
@@ -41,16 +48,28 @@ public sealed class ActivityLogService
             );
             """;
 
-        using var connection = _connectionFactory.CreateConnection();
-        await connection.ExecuteAsync(
-            sql,
-            new
+        IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
+
+        try
+        {
+            await connection.ExecuteAsync(
+                sql,
+                new
+                {
+                    UserId = userId,
+                    ActionType = actionType.Trim(),
+                    EntityName = string.IsNullOrWhiteSpace(entityName) ? null : entityName.Trim(),
+                    EntityId = entityId,
+                    Description = description.Trim()
+                },
+                transaction);
+        }
+        finally
+        {
+            if (transaction is null)
             {
-                UserId = userId,
-                ActionType = actionType.Trim(),
-                EntityName = string.IsNullOrWhiteSpace(entityName) ? null : entityName.Trim(),
-                EntityId = entityId,
-                Description = description.Trim()
-            });
+                connection.Dispose();
+            }
+        }
     }
 }

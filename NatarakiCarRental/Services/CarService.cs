@@ -1,4 +1,9 @@
 using FluentValidation;
+using FluentValidation.Results;
+using Microsoft.Data.SqlClient;
+using NatarakiCarRental.Data;
+using NatarakiCarRental.Exceptions;
+using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
 using NatarakiCarRental.Repositories;
 using NatarakiCarRental.Validators;
@@ -9,16 +14,28 @@ public sealed class CarService
 {
     private readonly CarRepository _carRepository;
     private readonly ActivityLogService _activityLogService;
+    private readonly DbConnectionFactory _connectionFactory;
 
     public CarService()
-        : this(new CarRepository(), new ActivityLogService())
+        : this(new DbConnectionFactory())
+    {
+    }
+
+    private CarService(DbConnectionFactory connectionFactory)
+        : this(new CarRepository(connectionFactory), new ActivityLogService(connectionFactory), connectionFactory)
     {
     }
 
     public CarService(CarRepository carRepository, ActivityLogService activityLogService)
+        : this(carRepository, activityLogService, new DbConnectionFactory())
+    {
+    }
+
+    public CarService(CarRepository carRepository, ActivityLogService activityLogService, DbConnectionFactory connectionFactory)
     {
         _carRepository = carRepository;
         _activityLogService = activityLogService;
+        _connectionFactory = connectionFactory;
     }
 
     public Task<IReadOnlyList<Car>> GetActiveCarsAsync()
@@ -65,14 +82,32 @@ public sealed class CarService
             throw new ValidationException("Plate number already exists.");
         }
 
-        int carId = await _carRepository.AddCarAsync(car);
-        await _activityLogService.LogAsync(
-            "Add car",
-            "Car",
-            carId,
-            $"Added car {car.CarName} ({car.PlateNumber}).");
+        await using SqlConnection connection = await _connectionFactory.CreateOpenConnectionAsync();
+        using SqlTransaction transaction = connection.BeginTransaction();
 
-        return carId;
+        try
+        {
+            int carId = await _carRepository.AddCarAsync(car, transaction);
+            await _activityLogService.LogAsync(
+                "Add car",
+                "Car",
+                carId,
+                $"Added car {car.CarName} ({car.PlateNumber}).",
+                transaction: transaction);
+
+            transaction.Commit();
+            return carId;
+        }
+        catch (SqlException exception) when (IsUniqueConstraintViolation(exception))
+        {
+            RollbackQuietly(transaction);
+            throw CreateDuplicatePlateValidationException();
+        }
+        catch
+        {
+            RollbackQuietly(transaction);
+            throw;
+        }
     }
 
     public async Task UpdateCarAsync(Car car)
@@ -89,42 +124,107 @@ public sealed class CarService
             throw new ValidationException("Plate number already exists.");
         }
 
-        await _carRepository.UpdateCarAsync(car);
-        await _activityLogService.LogAsync(
-            "Edit car",
-            "Car",
-            car.CarId,
-            $"Edited car {car.CarName} ({car.PlateNumber}).");
+        await using SqlConnection connection = await _connectionFactory.CreateOpenConnectionAsync();
+        using SqlTransaction transaction = connection.BeginTransaction();
+
+        try
+        {
+            int affectedRows = await _carRepository.UpdateCarAsync(car, transaction);
+
+            if (affectedRows == 0)
+            {
+                throw new RecordNotFoundException($"Car record #{car.CarId} was not found.");
+            }
+
+            await _activityLogService.LogAsync(
+                "Edit car",
+                "Car",
+                car.CarId,
+                $"Edited car {car.CarName} ({car.PlateNumber}).",
+                transaction: transaction);
+
+            transaction.Commit();
+        }
+        catch (SqlException exception) when (IsUniqueConstraintViolation(exception))
+        {
+            RollbackQuietly(transaction);
+            throw CreateDuplicatePlateValidationException();
+        }
+        catch
+        {
+            RollbackQuietly(transaction);
+            throw;
+        }
     }
 
     public async Task ArchiveCarAsync(int carId)
     {
         Car? car = await _carRepository.GetCarByIdAsync(carId);
-        await _carRepository.ArchiveCarAsync(carId);
-        await _activityLogService.LogAsync(
-            "Archive car",
-            "Car",
-            carId,
-            $"Archived car {DescribeCar(car, carId)}.");
+        await using SqlConnection connection = await _connectionFactory.CreateOpenConnectionAsync();
+        using SqlTransaction transaction = connection.BeginTransaction();
+
+        try
+        {
+            int affectedRows = await _carRepository.ArchiveCarAsync(carId, transaction);
+
+            if (affectedRows == 0)
+            {
+                throw new RecordNotFoundException($"Car record #{carId} was not found.");
+            }
+
+            await _activityLogService.LogAsync(
+                "Archive car",
+                "Car",
+                carId,
+                $"Archived car {DescribeCar(car, carId)}.",
+                transaction: transaction);
+
+            transaction.Commit();
+        }
+        catch
+        {
+            RollbackQuietly(transaction);
+            throw;
+        }
     }
 
     public async Task RestoreCarAsync(int carId)
     {
         Car? car = await _carRepository.GetCarByIdAsync(carId);
-        await _carRepository.RestoreCarAsync(carId);
-        await _activityLogService.LogAsync(
-            "Restore car",
-            "Car",
-            carId,
-            $"Restored car {DescribeCar(car, carId)}.");
+        await using SqlConnection connection = await _connectionFactory.CreateOpenConnectionAsync();
+        using SqlTransaction transaction = connection.BeginTransaction();
+
+        try
+        {
+            int affectedRows = await _carRepository.RestoreCarAsync(carId, transaction);
+
+            if (affectedRows == 0)
+            {
+                throw new RecordNotFoundException($"Car record #{carId} was not found.");
+            }
+
+            await _activityLogService.LogAsync(
+                "Restore car",
+                "Car",
+                carId,
+                $"Restored car {DescribeCar(car, carId)}.",
+                transaction: transaction);
+
+            transaction.Commit();
+        }
+        catch
+        {
+            RollbackQuietly(transaction);
+            throw;
+        }
     }
 
     private static void NormalizeCar(Car car)
     {
-        car.CarName = car.CarName.Trim();
-        car.Brand = car.Brand.Trim();
-        car.Model = car.Model.Trim();
-        car.PlateNumber = car.PlateNumber.Trim().ToUpperInvariant();
+        car.CarName = car.CarName?.Trim() ?? string.Empty;
+        car.Brand = car.Brand?.Trim() ?? string.Empty;
+        car.Model = car.Model?.Trim() ?? string.Empty;
+        car.PlateNumber = car.PlateNumber?.Trim().ToUpperInvariant() ?? string.Empty;
         car.Color = NullIfWhiteSpace(car.Color);
         car.Transmission = NullIfWhiteSpace(car.Transmission);
         car.FuelType = NullIfWhiteSpace(car.FuelType);
@@ -141,5 +241,28 @@ public sealed class CarService
     private static string DescribeCar(Car? car, int carId)
     {
         return car is null ? $"#{carId}" : $"{car.CarName} ({car.PlateNumber})";
+    }
+
+    private static bool IsUniqueConstraintViolation(SqlException exception)
+    {
+        return exception.Number is 2601 or 2627;
+    }
+
+    private static ValidationException CreateDuplicatePlateValidationException()
+    {
+        return new ValidationException(
+            [new ValidationFailure(nameof(Car.PlateNumber), "Plate number already exists.")]);
+    }
+
+    private static void RollbackQuietly(SqlTransaction transaction)
+    {
+        try
+        {
+            transaction.Rollback();
+        }
+        catch
+        {
+            // Preserve the original exception that caused the rollback.
+        }
     }
 }

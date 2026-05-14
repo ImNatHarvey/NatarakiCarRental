@@ -1,15 +1,11 @@
 using FluentValidation;
+using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
 
 namespace NatarakiCarRental.Validators;
 
 public sealed class CarValidator : AbstractValidator<Car>
 {
-    private static readonly string[] ValidStatuses = ["Available", "Rented", "Maintenance"];
-    private static readonly string[] ValidTransmissions = ["Automatic", "Manual", "CVT"];
-    private static readonly string[] ValidFuelTypes = ["Gasoline", "Diesel", "Hybrid", "Electric"];
-    private static readonly string[] ValidCodingDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "None / Not Applicable"];
-
     public CarValidator()
     {
         RuleFor(car => car.CarName)
@@ -52,19 +48,19 @@ public sealed class CarValidator : AbstractValidator<Car>
             .WithMessage("Status is required.");
 
         RuleFor(car => car.Status)
-            .Must(status => ValidStatuses.Contains(status))
+            .Must(status => CarConstants.Status.All.Contains(status))
             .WithMessage("Status must be Available, Rented, or Maintenance.");
 
         RuleFor(car => car.Transmission)
-            .Must(value => string.IsNullOrWhiteSpace(value) || ValidTransmissions.Contains(value))
+            .Must(value => string.IsNullOrWhiteSpace(value) || CarConstants.Transmission.All.Contains(value))
             .WithMessage("Transmission must be Automatic, Manual, or CVT.");
 
         RuleFor(car => car.FuelType)
-            .Must(value => string.IsNullOrWhiteSpace(value) || ValidFuelTypes.Contains(value))
+            .Must(value => string.IsNullOrWhiteSpace(value) || CarConstants.FuelType.All.Contains(value))
             .WithMessage("Fuel type must be Gasoline, Diesel, Hybrid, or Electric.");
 
         RuleFor(car => car.CodingDay)
-            .Must(value => string.IsNullOrWhiteSpace(value) || ValidCodingDays.Contains(value))
+            .Must(value => string.IsNullOrWhiteSpace(value) || CarConstants.CodingDay.All.Contains(value))
             .WithMessage("Car coding day must be Monday, Tuesday, Wednesday, Thursday, Friday, or None / Not Applicable.");
     }
 }

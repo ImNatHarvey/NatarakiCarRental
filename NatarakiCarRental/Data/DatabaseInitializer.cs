@@ -38,6 +38,9 @@ public static class DatabaseInitializer
 
     private static void CreateTablesIfMissing()
     {
+        string availableStatus = SqlLiteral(CarConstants.Status.Available);
+        string validStatuses = SqlInList(CarConstants.Status.All);
+
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Roles', N'U') IS NULL
             BEGIN
@@ -74,7 +77,7 @@ public static class DatabaseInitializer
             END;
             """);
 
-        ExecuteDatabaseCommand("""
+        ExecuteDatabaseCommand($$"""
             IF OBJECT_ID(N'dbo.Cars', N'U') IS NULL
             BEGIN
                 CREATE TABLE dbo.Cars
@@ -90,7 +93,7 @@ public static class DatabaseInitializer
                     FuelType nvarchar(50) NULL,
                     SeatingCapacity int NULL,
                     RatePerDay decimal(18,2) NOT NULL,
-                    Status nvarchar(30) NOT NULL DEFAULT N'Available',
+                    Status nvarchar(30) NOT NULL DEFAULT {{availableStatus}},
                     CodingDay nvarchar(30) NULL,
                     Mileage int NULL,
                     RegistrationExpirationDate date NULL,
@@ -100,7 +103,12 @@ public static class DatabaseInitializer
                     IsArchived bit NOT NULL DEFAULT 0,
                     CreatedAt datetime2 NOT NULL DEFAULT sysdatetime(),
                     UpdatedAt datetime2 NULL,
-                    ArchivedAt datetime2 NULL
+                    ArchivedAt datetime2 NULL,
+                    CONSTRAINT CK_Cars_RatePerDay_Positive CHECK (RatePerDay > 0),
+                    CONSTRAINT CK_Cars_Mileage_NonNegative CHECK (Mileage IS NULL OR Mileage >= 0),
+                    CONSTRAINT CK_Cars_SeatingCapacity_Positive CHECK (SeatingCapacity IS NULL OR SeatingCapacity > 0),
+                    CONSTRAINT CK_Cars_Year_Valid CHECK ([Year] IS NULL OR [Year] BETWEEN 1000 AND 9999),
+                    CONSTRAINT CK_Cars_Status_Valid CHECK (Status IN ({{validStatuses}}))
                 );
             END;
             """);
@@ -130,6 +138,41 @@ public static class DatabaseInitializer
             END;
             """);
 
+        ExecuteDatabaseCommand($$"""
+            IF OBJECT_ID(N'dbo.Cars', N'U') IS NOT NULL
+            BEGIN
+                IF OBJECT_ID(N'dbo.CK_Cars_RatePerDay_Positive', N'C') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Cars WITH CHECK
+                    ADD CONSTRAINT CK_Cars_RatePerDay_Positive CHECK (RatePerDay > 0);
+                END;
+
+                IF OBJECT_ID(N'dbo.CK_Cars_Mileage_NonNegative', N'C') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Cars WITH CHECK
+                    ADD CONSTRAINT CK_Cars_Mileage_NonNegative CHECK (Mileage IS NULL OR Mileage >= 0);
+                END;
+
+                IF OBJECT_ID(N'dbo.CK_Cars_SeatingCapacity_Positive', N'C') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Cars WITH CHECK
+                    ADD CONSTRAINT CK_Cars_SeatingCapacity_Positive CHECK (SeatingCapacity IS NULL OR SeatingCapacity > 0);
+                END;
+
+                IF OBJECT_ID(N'dbo.CK_Cars_Year_Valid', N'C') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Cars WITH CHECK
+                    ADD CONSTRAINT CK_Cars_Year_Valid CHECK ([Year] IS NULL OR [Year] BETWEEN 1000 AND 9999);
+                END;
+
+                IF OBJECT_ID(N'dbo.CK_Cars_Status_Valid', N'C') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Cars WITH CHECK
+                    ADD CONSTRAINT CK_Cars_Status_Valid CHECK (Status IN ({{validStatuses}}));
+                END;
+            END;
+            """);
+
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.ActivityLogs', N'U') IS NULL
             BEGIN
@@ -144,6 +187,48 @@ public static class DatabaseInitializer
                     CreatedAt datetime2 NOT NULL DEFAULT sysdatetime(),
                     CONSTRAINT FK_ActivityLogs_Users FOREIGN KEY (UserId) REFERENCES dbo.Users(UserId)
                 );
+            END;
+            """);
+
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.Cars', N'U') IS NOT NULL
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = N'IX_Cars_IsArchived_CarId'
+                      AND object_id = OBJECT_ID(N'dbo.Cars')
+               )
+            BEGIN
+                CREATE NONCLUSTERED INDEX IX_Cars_IsArchived_CarId
+                ON dbo.Cars (IsArchived, CarId DESC);
+            END;
+            """);
+
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.Cars', N'U') IS NOT NULL
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = N'IX_Cars_IsArchived_Status'
+                      AND object_id = OBJECT_ID(N'dbo.Cars')
+               )
+            BEGIN
+                CREATE NONCLUSTERED INDEX IX_Cars_IsArchived_Status
+                ON dbo.Cars (IsArchived, Status);
+            END;
+            """);
+
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.ActivityLogs', N'U') IS NOT NULL
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = N'IX_ActivityLogs_CreatedAt'
+                      AND object_id = OBJECT_ID(N'dbo.ActivityLogs')
+               )
+            BEGIN
+                CREATE NONCLUSTERED INDEX IX_ActivityLogs_CreatedAt
+                ON dbo.ActivityLogs (CreatedAt DESC);
             END;
             """);
     }
@@ -224,5 +309,15 @@ public static class DatabaseInitializer
 
         using SqlCommand command = new(sql, connection);
         command.ExecuteNonQuery();
+    }
+
+    private static string SqlInList(IEnumerable<string> values)
+    {
+        return string.Join(", ", values.Select(SqlLiteral));
+    }
+
+    private static string SqlLiteral(string value)
+    {
+        return $"N'{value.Replace("'", "''")}'";
     }
 }

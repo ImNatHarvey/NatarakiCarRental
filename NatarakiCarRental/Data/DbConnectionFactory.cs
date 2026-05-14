@@ -24,6 +24,22 @@ public sealed class DbConnectionFactory
         return new SqlConnection(ConnectionString);
     }
 
+    public async Task<SqlConnection> CreateOpenConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        SqlConnection connection = CreateConnection();
+
+        try
+        {
+            await connection.OpenAsync(cancellationToken);
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+    }
+
     public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)
     {
         await using SqlConnection connection = CreateConnection();
