@@ -1,10 +1,13 @@
 using FontAwesome.Sharp;
+using System.Drawing.Drawing2D;
 using System.Globalization;
+using System.Linq;
 using NatarakiCarRental.Forms.Cars;
 using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
 using NatarakiCarRental.Services;
 using NatarakiCarRental.UserControls.Cards;
+using NatarakiCarRental.UserControls.Common;
 
 namespace NatarakiCarRental.UserControls.Cars;
 
@@ -17,7 +20,8 @@ public sealed class CarGarageControl : UserControl
     private readonly MetricCardControl _archivedCarsCard = new();
     private static readonly CultureInfo PhilippineCulture = new("en-PH");
 
-    private readonly TextBox _searchTextBox = ControlFactory.CreateTextBox(300);
+    private readonly TextBox _searchTextBox = new();
+    private readonly ComboBox _filterComboBox = new();
     private readonly IconButton _activeCarsButton = new();
     private readonly IconButton _archivedCarsButton = new();
     private readonly DataGridView _carsGrid = new();
@@ -180,23 +184,49 @@ public sealed class CarGarageControl : UserControl
             BackColor = ThemeHelper.ContentBackground
         };
 
+        BorderedPanel searchContainer = new()
+        {
+            Size = new Size(240, 32),
+            Location = new Point(0, 8),
+            BackColor = ThemeHelper.Surface,
+            BorderColor = ThemeHelper.Border,
+            Cursor = Cursors.IBeam
+        };
+
         IconPictureBox searchIcon = new()
         {
             IconChar = IconChar.MagnifyingGlass,
             IconColor = ThemeHelper.TextSecondary,
-            IconSize = 16,
-            BackColor = ThemeHelper.ContentBackground,
-            Location = new Point(2, 15),
+            IconSize = 18,
+            BackColor = ThemeHelper.Surface,
+            Location = new Point(8, 7),
             Size = new Size(20, 20)
         };
 
-        _searchTextBox.PlaceholderText = "Search cars";
-        _searchTextBox.Location = new Point(28, 8);
-        _searchTextBox.Width = 300;
+        _searchTextBox.BorderStyle = BorderStyle.None;
+        _searchTextBox.PlaceholderText = "Search cars...";
+        _searchTextBox.BackColor = ThemeHelper.Surface;
+        _searchTextBox.Font = FontHelper.Regular(10F);
+        _searchTextBox.ForeColor = ThemeHelper.TextPrimary;
+        _searchTextBox.Location = new Point(34, 7);
+        _searchTextBox.Width = 196;
         _searchTextBox.TextChanged += async (_, _) => await LoadCarsAsync();
 
-        panel.Controls.Add(searchIcon);
-        panel.Controls.Add(_searchTextBox);
+        searchContainer.Controls.Add(searchIcon);
+        searchContainer.Controls.Add(_searchTextBox);
+        searchContainer.Click += (_, _) => _searchTextBox.Focus();
+
+        _filterComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        _filterComboBox.Font = FontHelper.Regular(10F);
+        _filterComboBox.ForeColor = ThemeHelper.TextPrimary;
+        _filterComboBox.Size = new Size(180, 30);
+        _filterComboBox.Location = new Point(256, 8);
+        _filterComboBox.Items.AddRange(["All Status", "Available", "Rented", "Maintenance"]);
+        _filterComboBox.SelectedIndex = 0;
+        _filterComboBox.SelectedIndexChanged += async (_, _) => await LoadCarsAsync();
+
+        panel.Controls.Add(searchContainer);
+        panel.Controls.Add(_filterComboBox);
 
         return panel;
     }
@@ -225,6 +255,8 @@ public sealed class CarGarageControl : UserControl
         _carsGrid.AllowUserToAddRows = false;
         _carsGrid.AllowUserToDeleteRows = false;
         _carsGrid.AllowUserToResizeRows = false;
+        _carsGrid.AllowUserToResizeColumns = false;
+        _carsGrid.ScrollBars = ScrollBars.Vertical;
         _carsGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
         _carsGrid.BackgroundColor = ThemeHelper.Surface;
         _carsGrid.BorderStyle = BorderStyle.None;
@@ -236,7 +268,18 @@ public sealed class CarGarageControl : UserControl
         _carsGrid.RowHeadersVisible = false;
         _carsGrid.RowTemplate.Height = 38;
         _carsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+
+        _carsGrid.DefaultCellStyle.SelectionBackColor = ThemeHelper.Surface;
+        _carsGrid.DefaultCellStyle.SelectionForeColor = ThemeHelper.TextPrimary;
+
+        _carsGrid.ColumnHeadersDefaultCellStyle.BackColor = ThemeHelper.Primary;
+        _carsGrid.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+        _carsGrid.ColumnHeadersDefaultCellStyle.SelectionBackColor = ThemeHelper.Primary;
+        _carsGrid.ColumnHeadersDefaultCellStyle.Font = FontHelper.SemiBold(9F);
+        _carsGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+
         _carsGrid.CellContentClick += CarsGrid_CellContentClick;
+        _carsGrid.CellPainting += CarsGrid_CellPainting;
 
         _emptyStateLabel.Text = "No car records found.";
         _emptyStateLabel.Dock = DockStyle.Bottom;
@@ -260,19 +303,19 @@ public sealed class CarGarageControl : UserControl
         _carsGrid.Columns.Add("Model", "Model");
         _carsGrid.Columns.Add("PlateNumber", "Plate Number");
         _carsGrid.Columns.Add("RatePerDay", "Rate/Day");
-        _carsGrid.Columns.Add("CodingDay", "Coding Day");
+        _carsGrid.Columns.Add("CodingDay", "Coding");
         _carsGrid.Columns.Add("Status", "Status");
 
-        AddActionColumn("ViewAction", "View", "View");
+        AddActionColumn("ViewAction", "Actions", "View");
 
         if (_showArchived)
         {
-            AddActionColumn("RestoreAction", "Restore", "Restore");
+            AddActionColumn("RestoreAction", "", "Restore");
         }
         else
         {
-            AddActionColumn("EditAction", "Edit", "Edit");
-            AddActionColumn("ArchiveAction", "Archive", "Archive");
+            AddActionColumn("EditAction", "", "Edit");
+            AddActionColumn("ArchiveAction", "", "Archive");
         }
 
         if (_carsGrid.Columns["CarId"] is DataGridViewColumn carIdColumn)
@@ -282,27 +325,36 @@ public sealed class CarGarageControl : UserControl
 
         if (_carsGrid.Columns["RatePerDay"] is DataGridViewColumn rateColumn)
         {
-            rateColumn.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            rateColumn.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
         }
 
+        // REDUCED weights on the left side to give more room to the buttons on the right
+        _carsGrid.Columns["CarName"].FillWeight = 85;
+        _carsGrid.Columns["Model"].FillWeight = 80;
+        _carsGrid.Columns["PlateNumber"].FillWeight = 80;
+        _carsGrid.Columns["RatePerDay"].FillWeight = 70;
+        _carsGrid.Columns["CodingDay"].FillWeight = 65;
+        _carsGrid.Columns["Status"].FillWeight = 75;
+
+        // INCREASED weights for the action buttons so they are all equally breathable
         if (_carsGrid.Columns["ViewAction"] is DataGridViewColumn viewColumn)
         {
-            viewColumn.FillWeight = 55;
+            viewColumn.FillWeight = 60;
         }
 
         if (_carsGrid.Columns["EditAction"] is DataGridViewColumn editColumn)
         {
-            editColumn.FillWeight = 55;
+            editColumn.FillWeight = 60;
         }
 
         if (_carsGrid.Columns["ArchiveAction"] is DataGridViewColumn archiveColumn)
         {
-            archiveColumn.FillWeight = 65;
+            archiveColumn.FillWeight = 60;
         }
 
         if (_carsGrid.Columns["RestoreAction"] is DataGridViewColumn restoreColumn)
         {
-            restoreColumn.FillWeight = 70;
+            restoreColumn.FillWeight = 60;
         }
     }
 
@@ -314,8 +366,11 @@ public sealed class CarGarageControl : UserControl
             HeaderText = headerText,
             Text = buttonText,
             UseColumnTextForButtonValue = true,
-            Width = 70
+            FlatStyle = FlatStyle.Flat
         };
+
+        column.DefaultCellStyle.BackColor = ThemeHelper.Surface;
+        column.DefaultCellStyle.SelectionBackColor = ThemeHelper.Surface;
 
         _carsGrid.Columns.Add(column);
     }
@@ -330,6 +385,13 @@ public sealed class CarGarageControl : UserControl
             UpdateMetricCards(counts);
 
             IReadOnlyList<Car> cars = await _carService.SearchCarsAsync(_searchTextBox.Text, _showArchived);
+
+            if (_filterComboBox.SelectedIndex > 0)
+            {
+                string selectedStatus = _filterComboBox.SelectedItem?.ToString() ?? "";
+                cars = cars.Where(c => c.Status == selectedStatus).ToList();
+            }
+
             PopulateGrid(cars);
         }
         catch (Exception exception)
@@ -353,13 +415,16 @@ public sealed class CarGarageControl : UserControl
 
         foreach (Car car in cars)
         {
+            string codingDayDisplay = string.IsNullOrWhiteSpace(car.CodingDay) ? "-" :
+                (car.CodingDay.StartsWith("None", StringComparison.OrdinalIgnoreCase) ? "None" : car.CodingDay);
+
             _carsGrid.Rows.Add(
                 car.CarId,
                 car.CarName,
                 car.Model,
                 car.PlateNumber,
                 car.RatePerDay.ToString("C", PhilippineCulture),
-                string.IsNullOrWhiteSpace(car.CodingDay) ? "-" : car.CodingDay,
+                codingDayDisplay,
                 car.Status);
         }
 
@@ -379,14 +444,142 @@ public sealed class CarGarageControl : UserControl
         button.IconColor = isActive ? Color.White : ThemeHelper.TextSecondary;
     }
 
+    private void CarsGrid_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+
+        string columnName = _carsGrid.Columns[e.ColumnIndex].Name;
+        bool isStatus = columnName == "Status";
+        bool isAction = columnName is "ViewAction" or "EditAction" or "ArchiveAction" or "RestoreAction";
+
+        if (isStatus || isAction)
+        {
+            e.PaintBackground(e.CellBounds, true);
+
+            string text = isAction ? (e.FormattedValue?.ToString() ?? string.Empty) : (e.Value?.ToString() ?? string.Empty);
+            if (string.IsNullOrEmpty(text)) return;
+
+            Color backColor = ThemeHelper.Surface;
+            Color foreColor = Color.White;
+
+            if (isStatus)
+            {
+                switch (text)
+                {
+                    case "Available":
+                        backColor = ThemeHelper.Success;
+                        break;
+                    case "Rented":
+                        backColor = ThemeHelper.Warning;
+                        break;
+                    case "Maintenance":
+                        backColor = ThemeHelper.Danger;
+                        break;
+                    default:
+                        backColor = ThemeHelper.GrayIcon;
+                        break;
+                }
+            }
+            else if (isAction)
+            {
+                switch (columnName)
+                {
+                    case "ViewAction":
+                        backColor = ThemeHelper.Primary;
+                        break;
+                    case "EditAction":
+                        backColor = ThemeHelper.Success;
+                        break;
+                    case "ArchiveAction":
+                        backColor = ThemeHelper.Danger;
+                        break;
+                    case "RestoreAction":
+                        backColor = ThemeHelper.Warning;
+                        break;
+                }
+            }
+
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            SizeF textSize = e.Graphics.MeasureString(text, e.CellStyle.Font);
+            float pillHeight = 26;
+            float pillWidth;
+
+            if (isAction)
+            {
+                pillWidth = e.CellBounds.Width - 12;
+            }
+            else
+            {
+                pillWidth = textSize.Width + 24;
+            }
+
+            if (pillWidth > e.CellBounds.Width - 4) pillWidth = e.CellBounds.Width - 4;
+
+            float x = isStatus
+                ? e.CellBounds.X + 8
+                : e.CellBounds.X + (e.CellBounds.Width - pillWidth) / 2;
+
+            float y = e.CellBounds.Y + (e.CellBounds.Height - pillHeight) / 2;
+
+            RectangleF rect = new RectangleF(x, y, pillWidth, pillHeight);
+
+            using GraphicsPath path = GetRoundedRect(rect, pillHeight / 2);
+            using SolidBrush backBrush = new(backColor);
+            using SolidBrush foreBrush = new(foreColor);
+
+            e.Graphics.FillPath(backBrush, path);
+
+            using StringFormat format = new()
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+                FormatFlags = StringFormatFlags.NoWrap,
+                Trimming = StringTrimming.EllipsisCharacter
+            };
+            e.Graphics.DrawString(text, e.CellStyle.Font, foreBrush, rect, format);
+
+            e.Handled = true;
+        }
+    }
+
+    private static GraphicsPath GetRoundedRect(RectangleF rect, float radius)
+    {
+        GraphicsPath path = new();
+        float diameter = radius * 2;
+        Size size = new Size((int)diameter, (int)diameter);
+        RectangleF arc = new RectangleF(rect.Location, size);
+
+        if (radius == 0)
+        {
+            path.AddRectangle(rect);
+            return path;
+        }
+
+        path.AddArc(arc, 180, 90);
+        arc.X = rect.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = rect.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = rect.Left;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
     private async void CarsGrid_CellContentClick(object? sender, DataGridViewCellEventArgs e)
     {
-        if (e.RowIndex < 0)
+        if (e.RowIndex < 0 || e.ColumnIndex < 0)
         {
             return;
         }
 
         string columnName = _carsGrid.Columns[e.ColumnIndex].Name;
+
+        if (columnName is not "ViewAction" and not "EditAction" and not "ArchiveAction" and not "RestoreAction")
+        {
+            return;
+        }
 
         int carId = Convert.ToInt32(_carsGrid.Rows[e.RowIndex].Cells["CarId"].Value);
 

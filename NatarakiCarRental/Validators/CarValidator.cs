@@ -5,7 +5,7 @@ namespace NatarakiCarRental.Validators;
 
 public sealed class CarValidator : AbstractValidator<Car>
 {
-    private static readonly string[] ValidStatuses = ["Available", "Rented", "Under Maintenance"];
+    private static readonly string[] ValidStatuses = ["Available", "Rented", "Maintenance"];
     private static readonly string[] ValidTransmissions = ["Automatic", "Manual", "CVT"];
     private static readonly string[] ValidFuelTypes = ["Gasoline", "Diesel", "Hybrid", "Electric"];
     private static readonly string[] ValidCodingDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "None / Not Applicable"];
@@ -53,7 +53,7 @@ public sealed class CarValidator : AbstractValidator<Car>
 
         RuleFor(car => car.Status)
             .Must(status => ValidStatuses.Contains(status))
-            .WithMessage("Status must be Available, Rented, or Under Maintenance.");
+            .WithMessage("Status must be Available, Rented, or Maintenance.");
 
         RuleFor(car => car.Transmission)
             .Must(value => string.IsNullOrWhiteSpace(value) || ValidTransmissions.Contains(value))

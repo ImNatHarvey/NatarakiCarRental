@@ -16,7 +16,7 @@ public enum CarFormMode
 public sealed class CarDetailsForm : Form
 {
     // Removed blank "" options
-    private static readonly string[] StatusOptions = ["Available", "Rented", "Under Maintenance"];
+    private static readonly string[] StatusOptions = ["Available", "Rented", "Maintenance"];
     private static readonly string[] TransmissionOptions = ["Automatic", "Manual", "CVT"];
     private static readonly string[] FuelTypeOptions = ["Gasoline", "Diesel", "Hybrid", "Electric"];
     private static readonly string[] CodingDayOptions = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "None / Not Applicable"];
