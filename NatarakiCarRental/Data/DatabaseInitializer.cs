@@ -224,7 +224,93 @@ public static class DatabaseInitializer
             END;
             """);
 
-        // 6. Customers Schema Updates
+        // 6. Fleet Schedules
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.FleetSchedules', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.FleetSchedules
+                (
+                    ScheduleId int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    CarId int NOT NULL,
+                    CustomerId int NULL,
+                    Title nvarchar(150) NOT NULL,
+                    ScheduleType nvarchar(30) NOT NULL,
+                    Status nvarchar(30) NOT NULL,
+                    StartDate date NOT NULL,
+                    EndDate date NOT NULL,
+                    Notes nvarchar(500) NULL,
+                    CreatedByUserId int NULL,
+                    CreatedAt datetime2 NOT NULL DEFAULT sysutcdatetime(),
+                    UpdatedAt datetime2 NULL,
+                    IsArchived bit NOT NULL DEFAULT 0,
+                    CONSTRAINT FK_FleetSchedules_Cars FOREIGN KEY (CarId) REFERENCES dbo.Cars(CarId),
+                    CONSTRAINT FK_FleetSchedules_Customers FOREIGN KEY (CustomerId) REFERENCES dbo.Customers(CustomerId),
+                    CONSTRAINT FK_FleetSchedules_Users FOREIGN KEY (CreatedByUserId) REFERENCES dbo.Users(UserId)
+                );
+            END;
+            """);
+
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.FleetSchedules', N'U') IS NOT NULL
+            BEGIN
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'CustomerId') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD CustomerId int NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'Title') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD Title nvarchar(150) NOT NULL CONSTRAINT DF_FleetSchedules_Title DEFAULT N'Untitled';
+                END;
+
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'ScheduleType') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD ScheduleType nvarchar(30) NOT NULL CONSTRAINT DF_FleetSchedules_ScheduleType DEFAULT N'Reservation';
+                END;
+
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'Status') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD Status nvarchar(30) NOT NULL CONSTRAINT DF_FleetSchedules_Status DEFAULT N'Pending';
+                END;
+
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'StartDate') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD StartDate date NOT NULL CONSTRAINT DF_FleetSchedules_StartDate DEFAULT CONVERT(date, sysdatetime());
+                END;
+
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'EndDate') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD EndDate date NOT NULL CONSTRAINT DF_FleetSchedules_EndDate DEFAULT CONVERT(date, sysdatetime());
+                END;
+
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'Notes') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD Notes nvarchar(500) NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'CreatedByUserId') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD CreatedByUserId int NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'CreatedAt') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD CreatedAt datetime2 NOT NULL CONSTRAINT DF_FleetSchedules_CreatedAt DEFAULT sysutcdatetime();
+                END;
+
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'UpdatedAt') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD UpdatedAt datetime2 NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.FleetSchedules', N'IsArchived') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.FleetSchedules ADD IsArchived bit NOT NULL CONSTRAINT DF_FleetSchedules_IsArchived DEFAULT 0;
+                END;
+            END;
+            """);
+
+        // 7. Customers Schema Updates
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Customers', N'U') IS NOT NULL
             BEGIN
@@ -260,7 +346,7 @@ public static class DatabaseInitializer
             END;
             """);
 
-        // 7. Customers Data Migration (Wrapped in sp_executesql to prevent parser errors)
+        // 8. Customers Data Migration (Wrapped in sp_executesql to prevent parser errors)
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Customers', N'U') IS NOT NULL
             BEGIN
@@ -278,7 +364,7 @@ public static class DatabaseInitializer
             END;
             """);
 
-        // 8. Customers Constraints
+        // 9. Customers Constraints
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Customers', N'U') IS NOT NULL
             BEGIN
@@ -341,7 +427,7 @@ public static class DatabaseInitializer
             END;
             """);
 
-        // 9. Indexes
+        // 10. Indexes
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Cars', N'U') IS NOT NULL
                AND NOT EXISTS (
@@ -381,6 +467,20 @@ public static class DatabaseInitializer
             BEGIN
                 CREATE NONCLUSTERED INDEX IX_ActivityLogs_CreatedAt
                 ON dbo.ActivityLogs (CreatedAt DESC);
+            END;
+            """);
+
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.FleetSchedules', N'U') IS NOT NULL
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = N'IX_FleetSchedules_CarId_DateRange'
+                      AND object_id = OBJECT_ID(N'dbo.FleetSchedules')
+               )
+            BEGIN
+                CREATE NONCLUSTERED INDEX IX_FleetSchedules_CarId_DateRange
+                ON dbo.FleetSchedules (CarId, IsArchived, Status, StartDate, EndDate);
             END;
             """);
 

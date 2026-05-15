@@ -1,0 +1,266 @@
+using System.Data;
+using Dapper;
+using NatarakiCarRental.Data;
+using NatarakiCarRental.Models;
+
+namespace NatarakiCarRental.Repositories;
+
+public sealed class FleetScheduleRepository
+{
+    private readonly DbConnectionFactory _connectionFactory;
+
+    public FleetScheduleRepository()
+        : this(new DbConnectionFactory())
+    {
+    }
+
+    public FleetScheduleRepository(DbConnectionFactory connectionFactory)
+    {
+        _connectionFactory = connectionFactory;
+    }
+
+    public Task<IReadOnlyList<FleetSchedule>> GetSchedulesForMonthAsync(int year, int month)
+    {
+        DateTime firstDay = new(year, month, 1);
+        DateTime lastDay = firstDay.AddMonths(1).AddDays(-1);
+        return GetSchedulesInRangeAsync(firstDay, lastDay);
+    }
+
+    public async Task<IReadOnlyList<FleetSchedule>> GetSchedulesForCarAsync(int carId)
+    {
+        const string sql = """
+            SELECT
+                schedules.ScheduleId,
+                schedules.CarId,
+                schedules.CustomerId,
+                cars.CarName,
+                cars.PlateNumber,
+                CustomerName = NULLIF(LTRIM(RTRIM(CONCAT(customers.FirstName, N' ', customers.LastName))), N''),
+                schedules.Title,
+                schedules.ScheduleType,
+                schedules.Status,
+                schedules.StartDate,
+                schedules.EndDate,
+                schedules.Notes,
+                schedules.CreatedByUserId,
+                schedules.CreatedAt,
+                schedules.UpdatedAt,
+                schedules.IsArchived
+            FROM dbo.FleetSchedules AS schedules
+            INNER JOIN dbo.Cars AS cars ON cars.CarId = schedules.CarId
+            LEFT JOIN dbo.Customers AS customers ON customers.CustomerId = schedules.CustomerId
+            WHERE schedules.CarId = @CarId
+              AND schedules.IsArchived = 0
+            ORDER BY schedules.StartDate DESC, schedules.ScheduleId DESC;
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        IEnumerable<FleetSchedule> schedules = await connection.QueryAsync<FleetSchedule>(sql, new { CarId = carId });
+        return schedules.ToList();
+    }
+
+    public async Task<FleetSchedule?> GetByIdAsync(int scheduleId)
+    {
+        const string sql = """
+            SELECT
+                schedules.ScheduleId,
+                schedules.CarId,
+                schedules.CustomerId,
+                cars.CarName,
+                cars.PlateNumber,
+                CustomerName = NULLIF(LTRIM(RTRIM(CONCAT(customers.FirstName, N' ', customers.LastName))), N''),
+                schedules.Title,
+                schedules.ScheduleType,
+                schedules.Status,
+                schedules.StartDate,
+                schedules.EndDate,
+                schedules.Notes,
+                schedules.CreatedByUserId,
+                schedules.CreatedAt,
+                schedules.UpdatedAt,
+                schedules.IsArchived
+            FROM dbo.FleetSchedules AS schedules
+            INNER JOIN dbo.Cars AS cars ON cars.CarId = schedules.CarId
+            LEFT JOIN dbo.Customers AS customers ON customers.CustomerId = schedules.CustomerId
+            WHERE schedules.ScheduleId = @ScheduleId;
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QuerySingleOrDefaultAsync<FleetSchedule>(sql, new { ScheduleId = scheduleId });
+    }
+
+    public async Task<int> CreateAsync(FleetSchedule schedule, IDbTransaction? transaction = null)
+    {
+        const string sql = """
+            INSERT INTO dbo.FleetSchedules
+            (
+                CarId,
+                CustomerId,
+                Title,
+                ScheduleType,
+                Status,
+                StartDate,
+                EndDate,
+                Notes,
+                CreatedByUserId
+            )
+            OUTPUT INSERTED.ScheduleId
+            VALUES
+            (
+                @CarId,
+                @CustomerId,
+                @Title,
+                @ScheduleType,
+                @Status,
+                @StartDate,
+                @EndDate,
+                @Notes,
+                @CreatedByUserId
+            );
+            """;
+
+        IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
+
+        try
+        {
+            return await connection.ExecuteScalarAsync<int>(sql, schedule, transaction);
+        }
+        finally
+        {
+            if (transaction is null)
+            {
+                connection.Dispose();
+            }
+        }
+    }
+
+    public async Task<int> UpdateAsync(FleetSchedule schedule, IDbTransaction? transaction = null)
+    {
+        const string sql = """
+            UPDATE dbo.FleetSchedules
+            SET
+                CarId = @CarId,
+                CustomerId = @CustomerId,
+                Title = @Title,
+                ScheduleType = @ScheduleType,
+                Status = @Status,
+                StartDate = @StartDate,
+                EndDate = @EndDate,
+                Notes = @Notes,
+                UpdatedAt = sysdatetime()
+            WHERE ScheduleId = @ScheduleId
+              AND IsArchived = 0;
+            """;
+
+        IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
+
+        try
+        {
+            return await connection.ExecuteAsync(sql, schedule, transaction);
+        }
+        finally
+        {
+            if (transaction is null)
+            {
+                connection.Dispose();
+            }
+        }
+    }
+
+    public async Task<int> ArchiveAsync(int scheduleId, IDbTransaction? transaction = null)
+    {
+        const string sql = """
+            UPDATE dbo.FleetSchedules
+            SET IsArchived = 1,
+                UpdatedAt = sysdatetime()
+            WHERE ScheduleId = @ScheduleId
+              AND IsArchived = 0;
+            """;
+
+        IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
+
+        try
+        {
+            return await connection.ExecuteAsync(sql, new { ScheduleId = scheduleId }, transaction);
+        }
+        finally
+        {
+            if (transaction is null)
+            {
+                connection.Dispose();
+            }
+        }
+    }
+
+    public async Task<bool> HasConflictAsync(
+        int carId,
+        DateTime startDate,
+        DateTime endDate,
+        int? excludedScheduleId = null)
+    {
+        const string sql = """
+            SELECT COUNT(1)
+            FROM dbo.FleetSchedules
+            WHERE CarId = @CarId
+              AND IsArchived = 0
+              AND Status <> N'Cancelled'
+              AND (@ExcludedScheduleId IS NULL OR ScheduleId <> @ExcludedScheduleId)
+              AND StartDate <= @EndDate
+              AND EndDate >= @StartDate;
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        int count = await connection.ExecuteScalarAsync<int>(
+            sql,
+            new
+            {
+                CarId = carId,
+                StartDate = startDate.Date,
+                EndDate = endDate.Date,
+                ExcludedScheduleId = excludedScheduleId
+            });
+
+        return count > 0;
+    }
+
+    private async Task<IReadOnlyList<FleetSchedule>> GetSchedulesInRangeAsync(DateTime startDate, DateTime endDate)
+    {
+        const string sql = """
+            SELECT
+                schedules.ScheduleId,
+                schedules.CarId,
+                schedules.CustomerId,
+                cars.CarName,
+                cars.PlateNumber,
+                CustomerName = NULLIF(LTRIM(RTRIM(CONCAT(customers.FirstName, N' ', customers.LastName))), N''),
+                schedules.Title,
+                schedules.ScheduleType,
+                schedules.Status,
+                schedules.StartDate,
+                schedules.EndDate,
+                schedules.Notes,
+                schedules.CreatedByUserId,
+                schedules.CreatedAt,
+                schedules.UpdatedAt,
+                schedules.IsArchived
+            FROM dbo.FleetSchedules AS schedules
+            INNER JOIN dbo.Cars AS cars ON cars.CarId = schedules.CarId
+            LEFT JOIN dbo.Customers AS customers ON customers.CustomerId = schedules.CustomerId
+            WHERE schedules.IsArchived = 0
+              AND schedules.StartDate <= @EndDate
+              AND schedules.EndDate >= @StartDate
+            ORDER BY schedules.StartDate, schedules.ScheduleId;
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        IEnumerable<FleetSchedule> schedules = await connection.QueryAsync<FleetSchedule>(
+            sql,
+            new
+            {
+                StartDate = startDate.Date,
+                EndDate = endDate.Date
+            });
+
+        return schedules.ToList();
+    }
+}
