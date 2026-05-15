@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace NatarakiCarRental.Services;
 
@@ -84,7 +85,7 @@ public sealed class LocalAddressService
         if (missingFiles.Length > 0)
         {
             throw new FileNotFoundException(
-                $"Address database files not found. Place regions.json, provinces.json, cities.json, and barangays.json in '{dataDirectory}'.");
+                $"Address database files not found in '{dataDirectory}'. Missing: {string.Join(", ", missingFiles.Select(Path.GetFileName))}.");
         }
 
         return new AddressDataStore(
@@ -99,11 +100,22 @@ public sealed class LocalAddressService
         try
         {
             string json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<List<T>>(json, JsonOptions) ?? [];
+            IReadOnlyList<T> items = JsonSerializer.Deserialize<List<T>>(json, JsonOptions) ?? [];
+
+            if (items.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Address database file '{Path.GetFileName(path)}' contains no records.");
+            }
+
+            return items;
         }
         catch (JsonException exception)
         {
-            throw new InvalidOperationException($"Address database file '{Path.GetFileName(path)}' contains invalid JSON.", exception);
+            throw new InvalidOperationException(
+                $"Address database file '{Path.GetFileName(path)}' could not be mapped to {typeof(T).Name}. " +
+                $"The JSON may be valid, but the DTO schema may not match the PSGC API payload. Details: {exception.Message}",
+                exception);
         }
     }
 
@@ -112,4 +124,58 @@ public sealed class LocalAddressService
         IReadOnlyList<PsgcProvinceDto> Provinces,
         IReadOnlyList<PsgcCityMunicipalityDto> Cities,
         IReadOnlyList<PsgcBarangayDto> Barangays);
+}
+
+public sealed record PsgcRegionDto(
+    string Code,
+    string Name);
+
+public sealed record PsgcProvinceDto(
+    string Code,
+    string Name,
+    string RegionCode);
+
+public sealed record PsgcCityMunicipalityDto(
+    string Code,
+    string Name,
+    [property: JsonConverter(typeof(NullableCodeJsonConverter))]
+    string? ProvinceCode,
+    string RegionCode,
+    bool? IsCapital);
+
+public sealed record PsgcBarangayDto(
+    string Code,
+    string Name,
+    [property: JsonConverter(typeof(NullableCodeJsonConverter))]
+    string? CityCode,
+    [property: JsonConverter(typeof(NullableCodeJsonConverter))]
+    string? MunicipalityCode,
+    [property: JsonConverter(typeof(NullableCodeJsonConverter))]
+    string? ProvinceCode,
+    string RegionCode);
+
+public sealed class NullableCodeJsonConverter : JsonConverter<string?>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        return reader.TokenType switch
+        {
+            JsonTokenType.String => reader.GetString(),
+            JsonTokenType.Null => null,
+            JsonTokenType.False => null,
+            JsonTokenType.True => null,
+            _ => throw new JsonException($"Unexpected token '{reader.TokenType}' for PSGC code field.")
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
+    {
+        if (value is null)
+        {
+            writer.WriteNullValue();
+            return;
+        }
+
+        writer.WriteStringValue(value);
+    }
 }

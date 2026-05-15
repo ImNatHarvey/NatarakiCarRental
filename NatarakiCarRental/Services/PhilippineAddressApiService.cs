@@ -119,35 +119,3 @@ public sealed class PhilippineAddressApiService
         }
     }
 }
-
-public sealed record PsgcRegionDto(
-    string Code,
-    string Name,
-    string RegionName,
-    string IslandGroupCode,
-    string Psgc10DigitCode);
-
-public sealed record PsgcProvinceDto(
-    string Code,
-    string Name,
-    string RegionCode,
-    string IslandGroupCode,
-    string Psgc10DigitCode);
-
-public sealed record PsgcCityMunicipalityDto(
-    string Code,
-    string Name,
-    string ProvinceCode,
-    string RegionCode,
-    string IslandGroupCode,
-    string Psgc10DigitCode);
-
-public sealed record PsgcBarangayDto(
-    string Code,
-    string Name,
-    string CityCode,
-    string MunicipalityCode,
-    string ProvinceCode,
-    string RegionCode,
-    string IslandGroupCode,
-    string Psgc10DigitCode);

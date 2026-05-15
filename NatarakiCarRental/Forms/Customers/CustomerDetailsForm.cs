@@ -542,6 +542,9 @@ public sealed class CustomerDetailsForm : Form
         catch (Exception exception)
         {
             ResetComboBox(_regionComboBox, "Unable to load regions", false);
+            ResetComboBox(_provinceComboBox, "Address lookup unavailable", false);
+            ResetComboBox(_cityComboBox, "Address lookup unavailable", false);
+            ResetComboBox(_barangayComboBox, "Address lookup unavailable", false);
             MessageBoxHelper.ShowWarning(exception.Message, "Address Lookup");
         }
         finally
