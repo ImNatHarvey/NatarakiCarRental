@@ -1,5 +1,6 @@
 using FluentValidation;
 using FluentValidation.Results;
+using System.Diagnostics;
 using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
 using NatarakiCarRental.Services;
@@ -36,6 +37,8 @@ public sealed class CustomerDetailsForm : Form
     private readonly Label _proofOfBillingPathLabel = new();
     private readonly Button _driverLicenseBrowseButton = CreateSecondaryButton("Browse", 90, 30);
     private readonly Button _proofOfBillingBrowseButton = CreateSecondaryButton("Browse", 90, 30);
+    private readonly Button _driverLicenseOpenButton = CreateSecondaryButton("Open File", 90, 30);
+    private readonly Button _proofOfBillingOpenButton = CreateSecondaryButton("Open File", 90, 30);
     private readonly Label _validationLabel = new();
 
     private string? _selectedDriverLicenseSourcePath;
@@ -215,8 +218,8 @@ public sealed class CustomerDetailsForm : Form
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
-        layout.Controls.Add(CreateFilePickerPanel("Driver's License Document", _driverLicensePathLabel, _driverLicenseBrowseButton), 0, 0);
-        layout.Controls.Add(CreateFilePickerPanel("Proof of Billing Document", _proofOfBillingPathLabel, _proofOfBillingBrowseButton), 1, 0);
+        layout.Controls.Add(CreateFilePickerPanel("Driver's License Document", _driverLicensePathLabel, _driverLicenseBrowseButton, _driverLicenseOpenButton), 0, 0);
+        layout.Controls.Add(CreateFilePickerPanel("Proof of Billing Document", _proofOfBillingPathLabel, _proofOfBillingBrowseButton, _proofOfBillingOpenButton), 1, 0);
         return layout;
     }
 
@@ -273,7 +276,7 @@ public sealed class CustomerDetailsForm : Form
         return panel;
     }
 
-    private static Panel CreateFilePickerPanel(string labelText, Label pathLabel, Button browseButton)
+    private static Panel CreateFilePickerPanel(string labelText, Label pathLabel, Button browseButton, Button openButton)
     {
         Panel panel = new()
         {
@@ -284,16 +287,19 @@ public sealed class CustomerDetailsForm : Form
         Label label = ControlFactory.CreateInputLabel(labelText);
         label.Location = new Point(0, 0);
         browseButton.Location = new Point(0, 28);
+        openButton.Location = new Point(102, 28);
 
         pathLabel.AutoSize = false;
-        pathLabel.Location = new Point(102, 33);
-        pathLabel.Size = new Size(270, 20);
+        pathLabel.Location = new Point(204, 33);
+        pathLabel.Size = new Size(168, 20);
         pathLabel.Font = FontHelper.Regular(9F);
         pathLabel.ForeColor = ThemeHelper.TextSecondary;
         pathLabel.Text = "No file selected";
+        pathLabel.AutoEllipsis = true;
 
         panel.Controls.Add(label);
         panel.Controls.Add(browseButton);
+        panel.Controls.Add(openButton);
         panel.Controls.Add(pathLabel);
         return panel;
     }
@@ -323,6 +329,7 @@ public sealed class CustomerDetailsForm : Form
                 _selectedDriverLicenseSourcePath = path;
                 _driverLicensePathLabel.Text = Path.GetFileName(path);
                 _driverLicensePathLabel.ForeColor = ThemeHelper.Primary;
+                _driverLicenseOpenButton.Enabled = true;
             });
 
         _proofOfBillingBrowseButton.Click += (_, _) => BrowseFile(
@@ -333,7 +340,19 @@ public sealed class CustomerDetailsForm : Form
                 _selectedProofOfBillingSourcePath = path;
                 _proofOfBillingPathLabel.Text = Path.GetFileName(path);
                 _proofOfBillingPathLabel.ForeColor = ThemeHelper.Primary;
+                _proofOfBillingOpenButton.Enabled = true;
             });
+
+        _driverLicenseOpenButton.Enabled = false;
+        _proofOfBillingOpenButton.Enabled = false;
+        _driverLicenseOpenButton.Click += (_, _) => OpenAttachment(
+            _selectedDriverLicenseSourcePath,
+            _sourceCustomer?.DriverLicensePath,
+            "driver's license document");
+        _proofOfBillingOpenButton.Click += (_, _) => OpenAttachment(
+            _selectedProofOfBillingSourcePath,
+            _sourceCustomer?.ProofOfBillingPath,
+            "proof of billing document");
     }
 
     private void LoadCustomer(Customer customer)
@@ -349,6 +368,8 @@ public sealed class CustomerDetailsForm : Form
         _proofOfBillingPathLabel.Text = string.IsNullOrWhiteSpace(customer.ProofOfBillingPath)
             ? "No file attached"
             : Path.GetFileName(customer.ProofOfBillingPath);
+        _driverLicenseOpenButton.Enabled = !string.IsNullOrWhiteSpace(customer.DriverLicensePath);
+        _proofOfBillingOpenButton.Enabled = !string.IsNullOrWhiteSpace(customer.ProofOfBillingPath);
     }
 
     private void ApplyViewMode()
@@ -449,6 +470,31 @@ public sealed class CustomerDetailsForm : Form
         if (dialog.ShowDialog() == DialogResult.OK)
         {
             selected(dialog.FileName);
+        }
+    }
+
+    private static void OpenAttachment(string? selectedSourcePath, string? storedPath, string attachmentName)
+    {
+        string? path = !string.IsNullOrWhiteSpace(selectedSourcePath) && File.Exists(selectedSourcePath)
+            ? selectedSourcePath
+            : UploadPathHelper.ResolveCustomerFilePath(storedPath);
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            MessageBoxHelper.ShowWarning($"The saved {attachmentName} file could not be found.", "Attachment Missing");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(path)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exception)
+        {
+            MessageBoxHelper.ShowError($"Unable to open the {attachmentName} file.\n\n{exception.Message}", "Open File");
         }
     }
 

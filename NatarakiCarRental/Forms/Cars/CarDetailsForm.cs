@@ -1,5 +1,6 @@
 using FluentValidation;
 using FluentValidation.Results;
+using System.Diagnostics;
 using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
 using NatarakiCarRental.Services;
@@ -47,6 +48,8 @@ public sealed class CarDetailsForm : Form
 
     private readonly Button _imageBrowseButton = CreateSecondaryButton("Browse", 90, 30);
     private readonly Button _orCrBrowseButton = CreateSecondaryButton("Browse", 90, 30);
+    private readonly Button _imageOpenButton = CreateSecondaryButton("Open File", 90, 30);
+    private readonly Button _orCrOpenButton = CreateSecondaryButton("Open File", 90, 30);
     private readonly Label _validationLabel = new();
 
     private string? _selectedImageSourcePath;
@@ -241,8 +244,8 @@ public sealed class CarDetailsForm : Form
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        layout.Controls.Add(CreateFilePickerPanel("Car Image", _imagePathLabel, _imageBrowseButton), 0, 0);
-        layout.Controls.Add(CreateFilePickerPanel("OR/CR Document", _orCrPathLabel, _orCrBrowseButton), 1, 0);
+        layout.Controls.Add(CreateFilePickerPanel("Car Image", _imagePathLabel, _imageBrowseButton, _imageOpenButton), 0, 0);
+        layout.Controls.Add(CreateFilePickerPanel("OR/CR Document", _orCrPathLabel, _orCrBrowseButton, _orCrOpenButton), 1, 0);
 
         return layout;
     }
@@ -303,7 +306,7 @@ public sealed class CarDetailsForm : Form
         return panel;
     }
 
-    private static Panel CreateFilePickerPanel(string labelText, Label pathLabel, Button browseButton)
+    private static Panel CreateFilePickerPanel(string labelText, Label pathLabel, Button browseButton, Button openButton)
     {
         Panel panel = new()
         {
@@ -316,16 +319,19 @@ public sealed class CarDetailsForm : Form
         titleLabel.Location = new Point(0, 0);
 
         browseButton.Location = new Point(0, 24);
+        openButton.Location = new Point(102, 24);
 
         pathLabel.AutoSize = false;
-        pathLabel.Location = new Point(102, 29);
-        pathLabel.Size = new Size(350, 20);
+        pathLabel.Location = new Point(204, 29);
+        pathLabel.Size = new Size(248, 20);
         pathLabel.Font = FontHelper.Regular(9F);
         pathLabel.ForeColor = ThemeHelper.TextSecondary;
         pathLabel.Text = "No file selected";
+        pathLabel.AutoEllipsis = true;
 
         panel.Controls.Add(titleLabel);
         panel.Controls.Add(browseButton);
+        panel.Controls.Add(openButton);
         panel.Controls.Add(pathLabel);
 
         return panel;
@@ -359,6 +365,7 @@ public sealed class CarDetailsForm : Form
                 _selectedImageSourcePath = path;
                 _imagePathLabel.Text = Path.GetFileName(path);
                 _imagePathLabel.ForeColor = ThemeHelper.Primary;
+                _imageOpenButton.Enabled = true;
             });
 
         _orCrBrowseButton.Click += (_, _) => BrowseFile(
@@ -369,7 +376,21 @@ public sealed class CarDetailsForm : Form
                 _selectedOrCrSourcePath = path;
                 _orCrPathLabel.Text = Path.GetFileName(path);
                 _orCrPathLabel.ForeColor = ThemeHelper.Primary;
+                _orCrOpenButton.Enabled = true;
             });
+
+        _imageOpenButton.Enabled = false;
+        _orCrOpenButton.Enabled = false;
+        _imageOpenButton.Click += (_, _) => OpenAttachment(
+            _selectedImageSourcePath,
+            _sourceCar?.ImagePath,
+            UploadPathHelper.ResolveCarFilePath,
+            "car image");
+        _orCrOpenButton.Click += (_, _) => OpenAttachment(
+            _selectedOrCrSourcePath,
+            _sourceCar?.OrCrPath,
+            UploadPathHelper.ResolveCarFilePath,
+            "OR/CR document");
     }
 
     private void LoadCar(Car car)
@@ -392,6 +413,8 @@ public sealed class CarDetailsForm : Form
 
         _imagePathLabel.Text = string.IsNullOrWhiteSpace(car.ImagePath) ? "No file attached" : Path.GetFileName(car.ImagePath);
         _orCrPathLabel.Text = string.IsNullOrWhiteSpace(car.OrCrPath) ? "No file attached" : Path.GetFileName(car.OrCrPath);
+        _imageOpenButton.Enabled = !string.IsNullOrWhiteSpace(car.ImagePath);
+        _orCrOpenButton.Enabled = !string.IsNullOrWhiteSpace(car.OrCrPath);
     }
 
     private void ApplyViewMode()
@@ -502,6 +525,35 @@ public sealed class CarDetailsForm : Form
         if (dialog.ShowDialog() == DialogResult.OK)
         {
             selected(dialog.FileName);
+        }
+    }
+
+    private static void OpenAttachment(
+        string? selectedSourcePath,
+        string? storedPath,
+        Func<string?, string?> resolver,
+        string attachmentName)
+    {
+        string? path = !string.IsNullOrWhiteSpace(selectedSourcePath) && File.Exists(selectedSourcePath)
+            ? selectedSourcePath
+            : resolver(storedPath);
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            MessageBoxHelper.ShowWarning($"The saved {attachmentName} file could not be found.", "Attachment Missing");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(path)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exception)
+        {
+            MessageBoxHelper.ShowError($"Unable to open the {attachmentName} file.\n\n{exception.Message}", "Open File");
         }
     }
 

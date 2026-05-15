@@ -119,7 +119,7 @@ public sealed class OverviewControl : UserControl
         Panel rentalsPanel = CreateTablePanel(
             "Recent Rentals",
             "Booking ID     Customer     Car     Status",
-            "No recent rentals yet.");
+            "Transactions module not implemented yet.");
 
         Panel customersPanel = CreateTablePanel(
             "Recent Customers",
@@ -184,7 +184,7 @@ public sealed class OverviewControl : UserControl
         Label titleLabel = CreatePanelTitle("Rental Overview");
         Label placeholderLabel = new()
         {
-            Text = "Charts will appear here once transaction data is available.",
+            Text = "Rental charts will appear once the Transactions module is implemented.",
             AutoSize = false,
             Dock = DockStyle.Fill,
             Font = FontHelper.Regular(10F),

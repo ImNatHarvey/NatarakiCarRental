@@ -22,7 +22,15 @@ public sealed class AppMessageDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ClientSize = new Size(430, 190);
+        Size measuredMessageSize = TextRenderer.MeasureText(
+            message,
+            FontHelper.Regular(9.5F),
+            new Size(310, 0),
+            TextFormatFlags.WordBreak);
+        int messageHeight = Math.Clamp(measuredMessageSize.Height + 8, 66, 132);
+        int dialogHeight = 124 + messageHeight;
+
+        ClientSize = new Size(430, dialogHeight);
         BackColor = ThemeHelper.Surface;
         Font = FontHelper.Regular();
         ShowInTaskbar = false;
@@ -59,7 +67,7 @@ public sealed class AppMessageDialog : Form
             Text = message,
             AutoSize = false,
             Location = new Point(86, 62),
-            Size = new Size(310, 66),
+            Size = new Size(310, messageHeight),
             Font = FontHelper.Regular(9.5F),
             ForeColor = ThemeHelper.TextSecondary
         };
@@ -68,7 +76,7 @@ public sealed class AppMessageDialog : Form
         Button primaryButton = ControlFactory.CreatePrimaryButton(isConfirmation ? "Yes" : "OK", 92, 34);
         primaryButton.BackColor = accentColor;
         primaryButton.FlatAppearance.MouseOverBackColor = accentColor;
-        primaryButton.Location = new Point(306, 138);
+        primaryButton.Location = new Point(306, dialogHeight - 52);
         primaryButton.DialogResult = isConfirmation ? DialogResult.Yes : DialogResult.OK;
 
         Button? secondaryButton = null;
@@ -80,7 +88,7 @@ public sealed class AppMessageDialog : Form
             {
                 Text = "No",
                 Size = new Size(92, 34),
-                Location = new Point(204, 138),
+                Location = new Point(204, dialogHeight - 52),
                 BackColor = ThemeHelper.Surface,
                 ForeColor = ThemeHelper.TextPrimary,
                 Font = FontHelper.SemiBold(),
