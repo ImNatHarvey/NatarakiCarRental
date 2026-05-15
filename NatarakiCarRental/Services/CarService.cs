@@ -15,27 +15,38 @@ public sealed class CarService
     private readonly CarRepository _carRepository;
     private readonly ActivityLogService _activityLogService;
     private readonly DbConnectionFactory _connectionFactory;
+    private readonly int? _currentUserId;
 
     public CarService()
-        : this(new DbConnectionFactory())
+        : this(currentUserId: null)
     {
     }
 
-    private CarService(DbConnectionFactory connectionFactory)
-        : this(new CarRepository(connectionFactory), new ActivityLogService(connectionFactory), connectionFactory)
+    public CarService(int? currentUserId)
+        : this(new DbConnectionFactory(), currentUserId)
+    {
+    }
+
+    private CarService(DbConnectionFactory connectionFactory, int? currentUserId)
+        : this(new CarRepository(connectionFactory), new ActivityLogService(connectionFactory), connectionFactory, currentUserId)
     {
     }
 
     public CarService(CarRepository carRepository, ActivityLogService activityLogService)
-        : this(carRepository, activityLogService, new DbConnectionFactory())
+        : this(carRepository, activityLogService, new DbConnectionFactory(), currentUserId: null)
     {
     }
 
-    public CarService(CarRepository carRepository, ActivityLogService activityLogService, DbConnectionFactory connectionFactory)
+    public CarService(
+        CarRepository carRepository,
+        ActivityLogService activityLogService,
+        DbConnectionFactory connectionFactory,
+        int? currentUserId = null)
     {
         _carRepository = carRepository;
         _activityLogService = activityLogService;
         _connectionFactory = connectionFactory;
+        _currentUserId = currentUserId;
     }
 
     public Task<IReadOnlyList<Car>> GetActiveCarsAsync()
@@ -93,6 +104,7 @@ public sealed class CarService
                 "Car",
                 carId,
                 $"Added car {car.CarName} ({car.PlateNumber}).",
+                userId: _currentUserId,
                 transaction: transaction);
 
             transaction.Commit();
@@ -141,6 +153,7 @@ public sealed class CarService
                 "Car",
                 car.CarId,
                 $"Edited car {car.CarName} ({car.PlateNumber}).",
+                userId: _currentUserId,
                 transaction: transaction);
 
             transaction.Commit();
@@ -169,7 +182,7 @@ public sealed class CarService
 
             if (affectedRows == 0)
             {
-                throw new RecordNotFoundException($"Car record #{carId} was not found.");
+                throw new RecordNotFoundException($"Car record #{carId} was not found or is already archived.");
             }
 
             await _activityLogService.LogAsync(
@@ -177,6 +190,7 @@ public sealed class CarService
                 "Car",
                 carId,
                 $"Archived car {DescribeCar(car, carId)}.",
+                userId: _currentUserId,
                 transaction: transaction);
 
             transaction.Commit();
@@ -200,7 +214,7 @@ public sealed class CarService
 
             if (affectedRows == 0)
             {
-                throw new RecordNotFoundException($"Car record #{carId} was not found.");
+                throw new RecordNotFoundException($"Car record #{carId} was not found or is not archived.");
             }
 
             await _activityLogService.LogAsync(
@@ -208,6 +222,7 @@ public sealed class CarService
                 "Car",
                 carId,
                 $"Restored car {DescribeCar(car, carId)}.",
+                userId: _currentUserId,
                 transaction: transaction);
 
             transaction.Commit();

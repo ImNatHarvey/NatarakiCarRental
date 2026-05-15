@@ -1,14 +1,24 @@
 using FontAwesome.Sharp;
 using NatarakiCarRental.Helpers;
+using NatarakiCarRental.Models;
+using NatarakiCarRental.Services;
 using NatarakiCarRental.UserControls.Cards;
 
 namespace NatarakiCarRental.UserControls.Dashboard;
 
 public sealed class OverviewControl : UserControl
 {
+    private readonly CarService _carService = new();
+    private readonly CustomerService _customerService = new();
+    private readonly MetricCardControl _totalCarsCard = new();
+    private readonly MetricCardControl _availableCarsCard = new();
+    private readonly MetricCardControl _activeCustomersCard = new();
+    private readonly MetricCardControl _archivedCustomersCard = new();
+
     public OverviewControl()
     {
         InitializeControl();
+        Load += OverviewControl_Load;
     }
 
     private void InitializeControl()
@@ -57,7 +67,7 @@ public sealed class OverviewControl : UserControl
         Controls.Add(mainLayout);
     }
 
-    private static TableLayoutPanel CreateMetricGrid()
+    private TableLayoutPanel CreateMetricGrid()
     {
         TableLayoutPanel grid = new()
         {
@@ -72,21 +82,18 @@ public sealed class OverviewControl : UserControl
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
         }
 
-        AddMetricCard(grid, IconChar.Car, "Total Cars", "0", "Registered vehicles", ThemeHelper.Primary, 0);
-        AddMetricCard(grid, IconChar.CircleCheck, "Available Cars", "0", "Ready for rental", ThemeHelper.Success, 1);
-        AddMetricCard(grid, IconChar.Key, "Active Rentals", "0", "Currently booked", ThemeHelper.Warning, 2);
-        AddMetricCard(grid, IconChar.PesoSign, "Monthly Revenue", "\u20b10.00", "Current month", ThemeHelper.Purple, 3);
+        AddMetricCard(grid, _totalCarsCard, IconChar.Car, "Total Cars", "0", "Registered active vehicles", ThemeHelper.Primary, 0);
+        AddMetricCard(grid, _availableCarsCard, IconChar.CircleCheck, "Available Cars", "0", "Ready for rental", ThemeHelper.Success, 1);
+        AddMetricCard(grid, _activeCustomersCard, IconChar.Users, "Active Customers", "0", "Ready for booking", ThemeHelper.Warning, 2);
+        AddMetricCard(grid, _archivedCustomersCard, IconChar.BoxArchive, "Archived Customers", "0", "Hidden records", ThemeHelper.GrayIcon, 3);
 
         return grid;
     }
 
-    private static void AddMetricCard(TableLayoutPanel grid, IconChar icon, string title, string value, string helperText, Color iconColor, int column)
+    private static void AddMetricCard(TableLayoutPanel grid, MetricCardControl card, IconChar icon, string title, string value, string helperText, Color iconColor, int column)
     {
-        MetricCardControl card = new()
-        {
-            Dock = DockStyle.Fill,
-            Margin = new Padding(0, 0, column == 3 ? 0 : 14, 0)
-        };
+        card.Dock = DockStyle.Fill;
+        card.Margin = new Padding(0, 0, column == 3 ? 0 : 14, 0);
 
         card.SetMetric(icon, title, value, helperText, iconColor);
 
@@ -202,5 +209,25 @@ public sealed class OverviewControl : UserControl
             Font = FontHelper.Title(12F),
             ForeColor = ThemeHelper.TextPrimary
         };
+    }
+
+    private async void OverviewControl_Load(object? sender, EventArgs e)
+    {
+        Load -= OverviewControl_Load;
+
+        try
+        {
+            CarCounts carCounts = await _carService.GetCarCountsAsync();
+            CustomerCounts customerCounts = await _customerService.GetCustomerCountsAsync();
+
+            _totalCarsCard.SetMetric(IconChar.Car, "Total Cars", carCounts.TotalCars.ToString(), "Registered active vehicles", ThemeHelper.Primary);
+            _availableCarsCard.SetMetric(IconChar.CircleCheck, "Available Cars", carCounts.AvailableCars.ToString(), "Ready for rental", ThemeHelper.Success);
+            _activeCustomersCard.SetMetric(IconChar.Users, "Active Customers", customerCounts.ActiveCustomers.ToString(), "Ready for booking", ThemeHelper.Warning);
+            _archivedCustomersCard.SetMetric(IconChar.BoxArchive, "Archived Customers", customerCounts.ArchivedCustomers.ToString(), "Hidden records", ThemeHelper.GrayIcon);
+        }
+        catch (Exception exception)
+        {
+            MessageBoxHelper.ShowWarning($"Unable to load overview counts.\n\n{exception.Message}", "Overview");
+        }
     }
 }

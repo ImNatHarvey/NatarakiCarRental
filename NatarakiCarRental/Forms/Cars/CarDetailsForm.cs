@@ -21,7 +21,7 @@ public sealed class CarDetailsForm : Form
     private static readonly string[] FuelTypeOptions = ["Gasoline", "Diesel", "Hybrid", "Electric"];
     private static readonly string[] CodingDayOptions = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "None / Not Applicable"];
 
-    private readonly CarService _carService = new();
+    private readonly CarService _carService;
     private readonly CarFormMode _mode;
     private readonly Car? _sourceCar;
     private readonly ErrorProvider _errorProvider = new();
@@ -52,8 +52,9 @@ public sealed class CarDetailsForm : Form
     private string? _selectedImageSourcePath;
     private string? _selectedOrCrSourcePath;
 
-    public CarDetailsForm(CarFormMode mode, Car? car = null)
+    public CarDetailsForm(CarFormMode mode, Car? car = null, int? currentUserId = null)
     {
+        _carService = new CarService(currentUserId);
         _mode = mode;
         _sourceCar = car;
         InitializeForm();
@@ -194,8 +195,7 @@ public sealed class CarDetailsForm : Form
         layout.Controls.Add(CreateInputPanel("Model *", _modelTextBox), 1, 0);
         layout.Controls.Add(CreateInputPanel("Plate Number *", _plateNumberTextBox), 2, 0);
 
-        // Added Peso Sign to Label
-        layout.Controls.Add(CreateInputPanel("Rate Per Day (₱) *", _ratePerDayTextBox), 3, 0);
+        layout.Controls.Add(CreateInputPanel("Rate Per Day (PHP) *", _ratePerDayTextBox), 3, 0);
 
         layout.Controls.Add(CreateInputPanel("Status *", _statusComboBox), 0, 1);
 
@@ -429,9 +429,11 @@ public sealed class CarDetailsForm : Form
             saveButton.Enabled = false;
             ClearValidationState();
 
+            EnsureRatePerDayIsValid();
+
             Car car = BuildCarFromInputs();
-            car.ImagePath = SaveUploadedFileIfSelected(_selectedImageSourcePath, _sourceCar?.ImagePath);
-            car.OrCrPath = SaveUploadedFileIfSelected(_selectedOrCrSourcePath, _sourceCar?.OrCrPath);
+            car.ImagePath = UploadPathHelper.SaveCarFileIfSelected(_selectedImageSourcePath, _sourceCar?.ImagePath, allowPdf: false);
+            car.OrCrPath = UploadPathHelper.SaveCarFileIfSelected(_selectedOrCrSourcePath, _sourceCar?.OrCrPath, allowPdf: true);
 
             if (_mode == CarFormMode.Edit)
             {
@@ -485,24 +487,6 @@ public sealed class CarDetailsForm : Form
             OrCrPath = _sourceCar?.OrCrPath,
             IsArchived = _sourceCar?.IsArchived ?? false
         };
-    }
-
-    private static string? SaveUploadedFileIfSelected(string? sourcePath, string? existingPath)
-    {
-        if (string.IsNullOrWhiteSpace(sourcePath))
-        {
-            return existingPath;
-        }
-
-        string uploadDirectory = Path.Combine(AppContext.BaseDirectory, AppConstants.CarsUploadFolder);
-        Directory.CreateDirectory(uploadDirectory);
-
-        string extension = Path.GetExtension(sourcePath);
-        string fileName = $"{Guid.NewGuid():N}{extension}";
-        string destinationPath = Path.Combine(uploadDirectory, fileName);
-        File.Copy(sourcePath, destinationPath);
-
-        return Path.Combine(AppConstants.CarsUploadFolder, fileName);
     }
 
     private static void BrowseFile(string title, string filter, Action<string> selected)
@@ -646,6 +630,17 @@ public sealed class CarDetailsForm : Form
     private static decimal TryParseDecimal(string value)
     {
         return decimal.TryParse(value.Trim(), out decimal result) ? result : 0M;
+    }
+
+    private void EnsureRatePerDayIsValid()
+    {
+        if (decimal.TryParse(_ratePerDayTextBox.Text.Trim(), out _))
+        {
+            return;
+        }
+
+        throw new ValidationException(
+            [new ValidationFailure(nameof(Car.RatePerDay), "Rate per day must be a valid number.")]);
     }
 
     private static string? NullIfWhiteSpace(string? value)

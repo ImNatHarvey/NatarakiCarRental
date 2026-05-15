@@ -11,7 +11,7 @@ namespace NatarakiCarRental.UserControls.Customers;
 
 public sealed class CustomerControl : UserControl
 {
-    private readonly CustomerService _customerService = new();
+    private readonly CustomerService _customerService;
     private readonly MetricCardControl _totalCustomersCard = new();
     private readonly MetricCardControl _activeCustomersCard = new();
     private readonly MetricCardControl _blacklistedCustomersCard = new();
@@ -25,10 +25,14 @@ public sealed class CustomerControl : UserControl
 
     private CustomerListFilter _filter = CustomerListFilter.Active;
 
-    public CustomerControl()
+    private readonly int _currentUserId;
+
+    public CustomerControl(int currentUserId)
     {
+        _currentUserId = currentUserId;
+        _customerService = new CustomerService(currentUserId);
         InitializeControl();
-        _ = LoadCustomersAsync();
+        Load += CustomerControl_Load;
     }
 
     private void InitializeControl()
@@ -367,6 +371,12 @@ public sealed class CustomerControl : UserControl
         }
     }
 
+    private async void CustomerControl_Load(object? sender, EventArgs e)
+    {
+        Load -= CustomerControl_Load;
+        await LoadCustomersAsync();
+    }
+
     private void UpdateMetricCards(CustomerCounts counts)
     {
         _totalCustomersCard.SetMetric(IconChar.Users, "Total Customers", counts.TotalCustomers.ToString(), "All active records", ThemeHelper.Primary);
@@ -588,7 +598,7 @@ public sealed class CustomerControl : UserControl
 
     private async void AddCustomerButton_Click(object? sender, EventArgs e)
     {
-        using CustomerDetailsForm form = new(CustomerFormMode.Add);
+        using CustomerDetailsForm form = new(CustomerFormMode.Add, currentUserId: _currentUserId);
 
         if (form.ShowDialog(this) == DialogResult.OK)
         {
@@ -605,7 +615,7 @@ public sealed class CustomerControl : UserControl
             return;
         }
 
-        using CustomerDetailsForm form = new(CustomerFormMode.View, customer);
+        using CustomerDetailsForm form = new(CustomerFormMode.View, customer, _currentUserId);
         form.ShowDialog(this);
     }
 
@@ -617,7 +627,7 @@ public sealed class CustomerControl : UserControl
             return;
         }
 
-        using CustomerDetailsForm form = new(CustomerFormMode.Edit, customer);
+        using CustomerDetailsForm form = new(CustomerFormMode.Edit, customer, _currentUserId);
 
         if (form.ShowDialog(this) == DialogResult.OK)
         {

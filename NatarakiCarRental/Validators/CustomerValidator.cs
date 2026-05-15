@@ -17,7 +17,9 @@ public sealed class CustomerValidator : AbstractValidator<Customer>
 
         RuleFor(customer => customer.PhoneNumber)
             .NotEmpty()
-            .WithMessage("Phone number is required.");
+            .WithMessage("Phone number is required.")
+            .Matches(@"^(09\d{9}|\+639\d{9})$")
+            .WithMessage("Phone number must be 11 digits starting with 09 or use +639XXXXXXXXX format.");
 
         RuleFor(customer => customer.Email)
             .EmailAddress()

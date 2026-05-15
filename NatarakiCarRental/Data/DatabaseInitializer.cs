@@ -5,8 +5,10 @@ namespace NatarakiCarRental.Data;
 
 public static class DatabaseInitializer
 {
-    private const string DefaultOwnerUsername = "NatarakiCar";
-    private const string DefaultOwnerPassword = "Nataraki2026";
+    private const string BootstrapOwnerUsernameEnvironmentVariable = "NATARAKI_BOOTSTRAP_USERNAME";
+    private const string BootstrapOwnerPasswordEnvironmentVariable = "NATARAKI_BOOTSTRAP_PASSWORD";
+    private const string DefaultDemoBootstrapOwnerUsername = "NatarakiCar";
+    private const string DefaultDemoBootstrapOwnerPassword = "Nataraki2026";
 
     public static void Initialize()
     {
@@ -234,9 +236,25 @@ public static class DatabaseInitializer
                 IF COL_LENGTH(N'dbo.Customers', N'Region') IS NULL
                 BEGIN
                     ALTER TABLE dbo.Customers ADD Region nvarchar(150) NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.Customers', N'Province') IS NULL
+                BEGIN
                     ALTER TABLE dbo.Customers ADD Province nvarchar(150) NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.Customers', N'City') IS NULL
+                BEGIN
                     ALTER TABLE dbo.Customers ADD City nvarchar(150) NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.Customers', N'Barangay') IS NULL
+                BEGIN
                     ALTER TABLE dbo.Customers ADD Barangay nvarchar(150) NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.Customers', N'StreetAddress') IS NULL
+                BEGIN
                     ALTER TABLE dbo.Customers ADD StreetAddress nvarchar(255) NULL;
                 END;
             END;
@@ -437,13 +455,22 @@ public static class DatabaseInitializer
             END;
             """;
 
-        string passwordHash = BCrypt.Net.BCrypt.HashPassword(DefaultOwnerPassword);
+        // Demo/bootstrap credentials only. Override them through environment variables or appsettings.json outside demo use.
+        string bootstrapUsername = GetBootstrapValue(
+            BootstrapOwnerUsernameEnvironmentVariable,
+            AppConfiguration.BootstrapOwnerUsername,
+            DefaultDemoBootstrapOwnerUsername);
+        string bootstrapPassword = GetBootstrapValue(
+            BootstrapOwnerPasswordEnvironmentVariable,
+            AppConfiguration.BootstrapOwnerPassword,
+            DefaultDemoBootstrapOwnerPassword);
+        string passwordHash = BCrypt.Net.BCrypt.HashPassword(bootstrapPassword);
 
         using SqlConnection connection = new(AppConstants.DefaultConnectionString);
         connection.Open();
 
         using SqlCommand command = new(sql, connection);
-        command.Parameters.AddWithValue("@Username", DefaultOwnerUsername);
+        command.Parameters.AddWithValue("@Username", bootstrapUsername);
         command.Parameters.AddWithValue("@PasswordHash", passwordHash);
         command.Parameters.AddWithValue("@FirstName", "System");
         command.Parameters.AddWithValue("@LastName", "Owner");
@@ -467,5 +494,17 @@ public static class DatabaseInitializer
     private static string SqlLiteral(string value)
     {
         return $"N'{value.Replace("'", "''")}'";
+    }
+
+    private static string GetBootstrapValue(string environmentVariable, string? configuredValue, string fallbackValue)
+    {
+        string? environmentValue = Environment.GetEnvironmentVariable(environmentVariable);
+
+        if (!string.IsNullOrWhiteSpace(environmentValue))
+        {
+            return environmentValue.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(configuredValue) ? fallbackValue : configuredValue.Trim();
     }
 }

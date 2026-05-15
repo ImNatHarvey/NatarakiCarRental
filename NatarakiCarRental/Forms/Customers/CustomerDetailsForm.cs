@@ -17,7 +17,7 @@ public sealed class CustomerDetailsForm : Form
 {
     private const string NotApplicableProvinceCode = "__NA__";
     private const string NotApplicableProvinceName = "N/A";
-    private readonly CustomerService _customerService = new();
+    private readonly CustomerService _customerService;
     private readonly LocalAddressService _addressService = new();
     private readonly CustomerFormMode _mode;
     private readonly Customer? _sourceCustomer;
@@ -42,8 +42,9 @@ public sealed class CustomerDetailsForm : Form
     private string? _selectedProofOfBillingSourcePath;
     private bool _isInitializingAddress;
 
-    public CustomerDetailsForm(CustomerFormMode mode, Customer? customer = null)
+    public CustomerDetailsForm(CustomerFormMode mode, Customer? customer = null, int? currentUserId = null)
     {
+        _customerService = new CustomerService(currentUserId);
         _mode = mode;
         _sourceCustomer = customer;
         InitializeForm();
@@ -382,8 +383,8 @@ public sealed class CustomerDetailsForm : Form
             ClearValidationState();
 
             Customer customer = BuildCustomerFromInputs();
-            customer.DriverLicensePath = SaveUploadedFileIfSelected(_selectedDriverLicenseSourcePath, _sourceCustomer?.DriverLicensePath);
-            customer.ProofOfBillingPath = SaveUploadedFileIfSelected(_selectedProofOfBillingSourcePath, _sourceCustomer?.ProofOfBillingPath);
+            customer.DriverLicensePath = UploadPathHelper.SaveCustomerFileIfSelected(_selectedDriverLicenseSourcePath, _sourceCustomer?.DriverLicensePath);
+            customer.ProofOfBillingPath = UploadPathHelper.SaveCustomerFileIfSelected(_selectedProofOfBillingSourcePath, _sourceCustomer?.ProofOfBillingPath);
 
             if (_mode == CustomerFormMode.Edit)
             {
@@ -433,24 +434,6 @@ public sealed class CustomerDetailsForm : Form
             ProofOfBillingPath = _sourceCustomer?.ProofOfBillingPath,
             IsArchived = _sourceCustomer?.IsArchived ?? false
         };
-    }
-
-    private static string? SaveUploadedFileIfSelected(string? sourcePath, string? existingPath)
-    {
-        if (string.IsNullOrWhiteSpace(sourcePath))
-        {
-            return existingPath;
-        }
-
-        string uploadDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConstants.ApplicationName, AppConstants.CustomersUploadFolder);
-        Directory.CreateDirectory(uploadDirectory);
-
-        string extension = Path.GetExtension(sourcePath);
-        string fileName = $"{Guid.NewGuid():N}{extension}";
-        string destinationPath = Path.Combine(uploadDirectory, fileName);
-        File.Copy(sourcePath, destinationPath);
-
-        return Path.Combine(AppConstants.CustomersUploadFolder, fileName);
     }
 
     private static void BrowseFile(string title, string filter, Action<string> selected)

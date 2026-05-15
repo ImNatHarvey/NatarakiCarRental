@@ -83,19 +83,25 @@ public sealed class MainForm : Form
 
         NavigationItem[] menuItems =
         [
-            new("Overview", IconChar.ChartLine),
-            new("Car Garage", IconChar.Car),
-            new("Customers", IconChar.Users),
-            new("Transactions", IconChar.Receipt),
-            new("Offsite", IconChar.LocationDot),
-            new("Activity Log", IconChar.ClipboardList),
-            new("Manage System", IconChar.Gear)
+            new("Overview", IconChar.ChartLine, true),
+            new("Car Garage", IconChar.Car, true),
+            new("Customers", IconChar.Users, true),
+            new("Transactions", IconChar.Receipt, false),
+            new("Offsite", IconChar.LocationDot, false),
+            new("Activity Log", IconChar.ClipboardList, false),
+            new("Manage System", IconChar.Gear, false)
         ];
 
         foreach (NavigationItem menuItem in menuItems)
         {
             IconButton button = ControlFactory.CreateSidebarButton(menuItem.Text, menuItem.Icon);
-            button.Click += (_, _) => Navigate(menuItem.Text);
+            button.Enabled = menuItem.IsImplemented;
+
+            if (menuItem.IsImplemented)
+            {
+                button.Click += (_, _) => Navigate(menuItem.Text);
+            }
+
             _navigationButtons.Add(button);
             menuPanel.Controls.Add(button);
         }
@@ -151,13 +157,13 @@ public sealed class MainForm : Form
 
     private void ShowCarGarage()
     {
-        LoadContent(new CarGarageControl());
+        LoadContent(new CarGarageControl(CurrentUser.UserId));
         SetActiveNavigation("Car Garage");
     }
 
     private void ShowCustomers()
     {
-        LoadContent(new CustomerControl());
+        LoadContent(new CustomerControl(CurrentUser.UserId));
         SetActiveNavigation("Customers");
     }
 
@@ -234,5 +240,5 @@ public sealed class MainForm : Form
         Close();
     }
 
-    private sealed record NavigationItem(string Text, IconChar Icon);
+    private sealed record NavigationItem(string Text, IconChar Icon, bool IsImplemented);
 }

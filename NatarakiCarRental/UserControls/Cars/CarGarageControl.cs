@@ -13,7 +13,7 @@ namespace NatarakiCarRental.UserControls.Cars;
 
 public sealed class CarGarageControl : UserControl
 {
-    private readonly CarService _carService = new();
+    private readonly CarService _carService;
     private readonly MetricCardControl _totalCarsCard = new();
     private readonly MetricCardControl _availableCarsCard = new();
     private readonly MetricCardControl _rentedCarsCard = new();
@@ -29,10 +29,14 @@ public sealed class CarGarageControl : UserControl
 
     private bool _showArchived;
 
-    public CarGarageControl()
+    private readonly int _currentUserId;
+
+    public CarGarageControl(int currentUserId)
     {
+        _currentUserId = currentUserId;
+        _carService = new CarService(currentUserId);
         InitializeControl();
-        _ = LoadCarsAsync();
+        Load += CarGarageControl_Load;
     }
 
     private void InitializeControl()
@@ -329,12 +333,12 @@ public sealed class CarGarageControl : UserControl
         }
 
         // REDUCED weights on the left side to give more room to the buttons on the right
-        _carsGrid.Columns["CarName"].FillWeight = 85;
-        _carsGrid.Columns["Model"].FillWeight = 80;
-        _carsGrid.Columns["PlateNumber"].FillWeight = 80;
-        _carsGrid.Columns["RatePerDay"].FillWeight = 70;
-        _carsGrid.Columns["CodingDay"].FillWeight = 65;
-        _carsGrid.Columns["Status"].FillWeight = 75;
+        SetFillWeight("CarName", 85);
+        SetFillWeight("Model", 80);
+        SetFillWeight("PlateNumber", 80);
+        SetFillWeight("RatePerDay", 70);
+        SetFillWeight("CodingDay", 65);
+        SetFillWeight("Status", 75);
 
         // INCREASED weights for the action buttons so they are all equally breathable
         if (_carsGrid.Columns["ViewAction"] is DataGridViewColumn viewColumn)
@@ -375,6 +379,14 @@ public sealed class CarGarageControl : UserControl
         _carsGrid.Columns.Add(column);
     }
 
+    private void SetFillWeight(string columnName, float weight)
+    {
+        if (_carsGrid.Columns[columnName] is DataGridViewColumn column)
+        {
+            column.FillWeight = weight;
+        }
+    }
+
     private async Task LoadCarsAsync()
     {
         try
@@ -398,6 +410,12 @@ public sealed class CarGarageControl : UserControl
         {
             MessageBoxHelper.ShowError($"Unable to load car records.\n\n{exception.Message}");
         }
+    }
+
+    private async void CarGarageControl_Load(object? sender, EventArgs e)
+    {
+        Load -= CarGarageControl_Load;
+        await LoadCarsAsync();
     }
 
     private void UpdateMetricCards(CarCounts counts)
@@ -499,9 +517,15 @@ public sealed class CarGarageControl : UserControl
                 }
             }
 
+            if (e.Graphics is null)
+            {
+                return;
+            }
+
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-            SizeF textSize = e.Graphics.MeasureString(text, e.CellStyle.Font);
+            Font font = e.CellStyle?.Font ?? FontHelper.SemiBold(9F);
+            SizeF textSize = e.Graphics.MeasureString(text, font);
             float pillHeight = 26;
             float pillWidth;
 
@@ -537,7 +561,7 @@ public sealed class CarGarageControl : UserControl
                 FormatFlags = StringFormatFlags.NoWrap,
                 Trimming = StringTrimming.EllipsisCharacter
             };
-            e.Graphics.DrawString(text, e.CellStyle.Font, foreBrush, rect, format);
+            e.Graphics.DrawString(text, font, foreBrush, rect, format);
 
             e.Handled = true;
         }
@@ -609,7 +633,7 @@ public sealed class CarGarageControl : UserControl
 
     private async void AddCarButton_Click(object? sender, EventArgs e)
     {
-        using CarDetailsForm addCarForm = new(CarFormMode.Add);
+        using CarDetailsForm addCarForm = new(CarFormMode.Add, currentUserId: _currentUserId);
 
         if (addCarForm.ShowDialog(this) == DialogResult.OK)
         {
@@ -629,7 +653,7 @@ public sealed class CarGarageControl : UserControl
             return;
         }
 
-        using CarDetailsForm form = new(CarFormMode.View, car);
+        using CarDetailsForm form = new(CarFormMode.View, car, _currentUserId);
         form.ShowDialog(this);
     }
 
@@ -644,7 +668,7 @@ public sealed class CarGarageControl : UserControl
             return;
         }
 
-        using CarDetailsForm form = new(CarFormMode.Edit, car);
+        using CarDetailsForm form = new(CarFormMode.Edit, car, _currentUserId);
 
         if (form.ShowDialog(this) == DialogResult.OK)
         {

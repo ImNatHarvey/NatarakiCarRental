@@ -316,7 +316,8 @@ public sealed class CarRepository
             SET IsArchived = 1,
                 ArchivedAt = sysdatetime(),
                 UpdatedAt = sysdatetime()
-            WHERE CarId = @CarId;
+            WHERE CarId = @CarId
+              AND IsArchived = 0;
             """;
 
         IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();
@@ -341,7 +342,8 @@ public sealed class CarRepository
             SET IsArchived = 0,
                 ArchivedAt = NULL,
                 UpdatedAt = sysdatetime()
-            WHERE CarId = @CarId;
+            WHERE CarId = @CarId
+              AND IsArchived = 1;
             """;
 
         IDbConnection connection = transaction?.Connection ?? _connectionFactory.CreateConnection();

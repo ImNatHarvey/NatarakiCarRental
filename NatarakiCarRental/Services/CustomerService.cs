@@ -14,30 +14,38 @@ public sealed class CustomerService
     private readonly CustomerRepository _customerRepository;
     private readonly ActivityLogService _activityLogService;
     private readonly DbConnectionFactory _connectionFactory;
+    private readonly int? _currentUserId;
 
     public CustomerService()
-        : this(new DbConnectionFactory())
+        : this(currentUserId: null)
     {
     }
 
-    private CustomerService(DbConnectionFactory connectionFactory)
-        : this(new CustomerRepository(connectionFactory), new ActivityLogService(connectionFactory), connectionFactory)
+    public CustomerService(int? currentUserId)
+        : this(new DbConnectionFactory(), currentUserId)
+    {
+    }
+
+    private CustomerService(DbConnectionFactory connectionFactory, int? currentUserId)
+        : this(new CustomerRepository(connectionFactory), new ActivityLogService(connectionFactory), connectionFactory, currentUserId)
     {
     }
 
     public CustomerService(CustomerRepository customerRepository, ActivityLogService activityLogService)
-        : this(customerRepository, activityLogService, new DbConnectionFactory())
+        : this(customerRepository, activityLogService, new DbConnectionFactory(), currentUserId: null)
     {
     }
 
     public CustomerService(
         CustomerRepository customerRepository,
         ActivityLogService activityLogService,
-        DbConnectionFactory connectionFactory)
+        DbConnectionFactory connectionFactory,
+        int? currentUserId = null)
     {
         _customerRepository = customerRepository;
         _activityLogService = activityLogService;
         _connectionFactory = connectionFactory;
+        _currentUserId = currentUserId;
     }
 
     public Task<Customer?> GetCustomerByIdAsync(int customerId)
@@ -83,6 +91,7 @@ public sealed class CustomerService
                 "Customer",
                 customerId,
                 $"Added customer {customer.FirstName} {customer.LastName} ({customer.PhoneNumber}).",
+                userId: _currentUserId,
                 transaction: transaction);
 
             transaction.Commit();
@@ -129,6 +138,7 @@ public sealed class CustomerService
                 "Customer",
                 customer.CustomerId,
                 $"Edited customer {customer.FirstName} {customer.LastName} ({customer.PhoneNumber}).",
+                userId: _currentUserId,
                 transaction: transaction);
 
             transaction.Commit();
@@ -165,6 +175,7 @@ public sealed class CustomerService
                 "Customer",
                 customerId,
                 $"Archived customer {DescribeCustomer(customer, customerId)}.",
+                userId: _currentUserId,
                 transaction: transaction);
 
             transaction.Commit();
@@ -196,6 +207,7 @@ public sealed class CustomerService
                 "Customer",
                 customerId,
                 $"Restored customer {DescribeCustomer(customer, customerId)}.",
+                userId: _currentUserId,
                 transaction: transaction);
 
             transaction.Commit();
@@ -240,6 +252,7 @@ public sealed class CustomerService
                 "Customer",
                 customerId,
                 description,
+                userId: _currentUserId,
                 transaction: transaction);
 
             transaction.Commit();
