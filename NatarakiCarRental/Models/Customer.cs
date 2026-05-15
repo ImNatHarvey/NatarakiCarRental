@@ -7,7 +7,11 @@ public sealed class Customer
     public string LastName { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string PhoneNumber { get; set; } = string.Empty;
-    public string? Address { get; set; }
+    public string? Region { get; set; }
+    public string? Province { get; set; }
+    public string? City { get; set; }
+    public string? Barangay { get; set; }
+    public string? StreetAddress { get; set; }
     public bool IsBlacklisted { get; set; }
     public string? BlacklistReason { get; set; }
     public bool IsArchived { get; set; }

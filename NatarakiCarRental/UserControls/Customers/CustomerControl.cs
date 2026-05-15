@@ -387,7 +387,7 @@ public sealed class CustomerControl : UserControl
                 $"{customer.FirstName} {customer.LastName}".Trim(),
                 customer.PhoneNumber,
                 string.IsNullOrWhiteSpace(customer.Email) ? "-" : customer.Email,
-                string.IsNullOrWhiteSpace(customer.Address) ? "-" : customer.Address,
+                FormatAddress(customer),
                 GetStatusText(customer),
                 customer.BlacklistReason ?? "-");
         }
@@ -403,6 +403,21 @@ public sealed class CustomerControl : UserControl
         }
 
         return customer.IsBlacklisted ? "Blacklisted" : "Active";
+    }
+
+    private static string FormatAddress(Customer customer)
+    {
+        string[] parts =
+        [
+            customer.StreetAddress ?? string.Empty,
+            customer.Barangay ?? string.Empty,
+            customer.City ?? string.Empty,
+            customer.Province ?? string.Empty,
+            customer.Region ?? string.Empty
+        ];
+
+        string address = string.Join(", ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+        return string.IsNullOrWhiteSpace(address) ? "-" : address;
     }
 
     private void UpdateTabStyles()

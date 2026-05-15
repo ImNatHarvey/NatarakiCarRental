@@ -41,6 +41,7 @@ public static class DatabaseInitializer
         string availableStatus = SqlLiteral(CarConstants.Status.Available);
         string validStatuses = SqlInList(CarConstants.Status.All);
 
+        // 1. Roles Table
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Roles', N'U') IS NULL
             BEGIN
@@ -54,6 +55,7 @@ public static class DatabaseInitializer
             END;
             """);
 
+        // 2. Users Table
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Users', N'U') IS NULL
             BEGIN
@@ -77,6 +79,7 @@ public static class DatabaseInitializer
             END;
             """);
 
+        // 3. Cars Table & Schema Updates
         ExecuteDatabaseCommand($$"""
             IF OBJECT_ID(N'dbo.Cars', N'U') IS NULL
             BEGIN
@@ -173,6 +176,7 @@ public static class DatabaseInitializer
             END;
             """);
 
+        // 4. Activity Logs
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.ActivityLogs', N'U') IS NULL
             BEGIN
@@ -190,6 +194,7 @@ public static class DatabaseInitializer
             END;
             """);
 
+        // 5. Customers Table
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Customers', N'U') IS NULL
             BEGIN
@@ -200,7 +205,11 @@ public static class DatabaseInitializer
                     LastName nvarchar(100) NOT NULL,
                     Email nvarchar(150) NULL,
                     PhoneNumber nvarchar(30) NOT NULL,
-                    Address nvarchar(500) NULL,
+                    Region nvarchar(150) NULL,
+                    Province nvarchar(150) NULL,
+                    City nvarchar(150) NULL,
+                    Barangay nvarchar(150) NULL,
+                    StreetAddress nvarchar(255) NULL,
                     IsBlacklisted bit NOT NULL DEFAULT 0,
                     BlacklistReason nvarchar(255) NULL,
                     IsArchived bit NOT NULL DEFAULT 0,
@@ -208,23 +217,12 @@ public static class DatabaseInitializer
                     ProofOfBillingPath nvarchar(500) NULL,
                     CreatedAt datetime2 NOT NULL DEFAULT sysdatetime(),
                     UpdatedAt datetime2 NULL,
-                    ArchivedAt datetime2 NULL,
-                    CONSTRAINT UQ_Customers_PhoneNumber UNIQUE (PhoneNumber),
-                    CONSTRAINT CK_Customers_FirstName_NotEmpty CHECK (LEN(LTRIM(RTRIM(FirstName))) > 0),
-                    CONSTRAINT CK_Customers_LastName_NotEmpty CHECK (LEN(LTRIM(RTRIM(LastName))) > 0),
-                    CONSTRAINT CK_Customers_PhoneNumber_NotEmpty CHECK (LEN(LTRIM(RTRIM(PhoneNumber))) > 0),
-                    CONSTRAINT CK_Customers_BlacklistReason_Valid CHECK (
-                        (IsBlacklisted = 0 AND BlacklistReason IS NULL)
-                        OR (IsBlacklisted = 1 AND LEN(LTRIM(RTRIM(ISNULL(BlacklistReason, N'')))) > 0)
-                    ),
-                    CONSTRAINT CK_Customers_ArchivedAt_Valid CHECK (
-                        (IsArchived = 0 AND ArchivedAt IS NULL)
-                        OR (IsArchived = 1 AND ArchivedAt IS NOT NULL)
-                    )
+                    ArchivedAt datetime2 NULL
                 );
             END;
             """);
 
+        // 6. Customers Schema Updates
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Customers', N'U') IS NOT NULL
             BEGIN
@@ -232,9 +230,37 @@ public static class DatabaseInitializer
                 BEGIN
                     ALTER TABLE dbo.Customers ADD BlacklistReason nvarchar(255) NULL;
                 END;
+
+                IF COL_LENGTH(N'dbo.Customers', N'Region') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.Customers ADD Region nvarchar(150) NULL;
+                    ALTER TABLE dbo.Customers ADD Province nvarchar(150) NULL;
+                    ALTER TABLE dbo.Customers ADD City nvarchar(150) NULL;
+                    ALTER TABLE dbo.Customers ADD Barangay nvarchar(150) NULL;
+                    ALTER TABLE dbo.Customers ADD StreetAddress nvarchar(255) NULL;
+                END;
             END;
             """);
 
+        // 7. Customers Data Migration (Wrapped in sp_executesql to prevent parser errors)
+        ExecuteDatabaseCommand("""
+            IF OBJECT_ID(N'dbo.Customers', N'U') IS NOT NULL
+            BEGIN
+                IF COL_LENGTH(N'dbo.Customers', N'Address') IS NOT NULL 
+                   AND COL_LENGTH(N'dbo.Customers', N'StreetAddress') IS NOT NULL
+                BEGIN
+                    EXEC sp_executesql N'
+                        UPDATE dbo.Customers
+                        SET StreetAddress = Address
+                        WHERE StreetAddress IS NULL
+                          AND Address IS NOT NULL
+                          AND LEN(LTRIM(RTRIM(Address))) > 0;
+                    ';
+                END;
+            END;
+            """);
+
+        // 8. Customers Constraints
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Customers', N'U') IS NOT NULL
             BEGIN
@@ -297,6 +323,7 @@ public static class DatabaseInitializer
             END;
             """);
 
+        // 9. Indexes
         ExecuteDatabaseCommand("""
             IF OBJECT_ID(N'dbo.Cars', N'U') IS NOT NULL
                AND NOT EXISTS (

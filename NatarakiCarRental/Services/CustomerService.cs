@@ -257,7 +257,11 @@ public sealed class CustomerService
         customer.LastName = customer.LastName?.Trim() ?? string.Empty;
         customer.Email = NullIfWhiteSpace(customer.Email);
         customer.PhoneNumber = customer.PhoneNumber?.Trim() ?? string.Empty;
-        customer.Address = NullIfWhiteSpace(customer.Address);
+        customer.Region = NullIfWhiteSpace(customer.Region);
+        customer.Province = NullIfWhiteSpace(customer.Province);
+        customer.City = NullIfWhiteSpace(customer.City);
+        customer.Barangay = NullIfWhiteSpace(customer.Barangay);
+        customer.StreetAddress = NullIfWhiteSpace(customer.StreetAddress);
         customer.BlacklistReason = customer.IsBlacklisted ? NullIfWhiteSpace(customer.BlacklistReason) : null;
         customer.DriverLicensePath = NullIfWhiteSpace(customer.DriverLicensePath);
         customer.ProofOfBillingPath = NullIfWhiteSpace(customer.ProofOfBillingPath);

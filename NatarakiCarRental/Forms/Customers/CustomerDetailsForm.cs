@@ -15,16 +15,23 @@ public enum CustomerFormMode
 
 public sealed class CustomerDetailsForm : Form
 {
+    private const string NotApplicableProvinceCode = "__NA__";
+    private const string NotApplicableProvinceName = "N/A";
     private readonly CustomerService _customerService = new();
+    private readonly LocalAddressService _addressService = new();
     private readonly CustomerFormMode _mode;
     private readonly Customer? _sourceCustomer;
     private readonly ErrorProvider _errorProvider = new();
 
-    private readonly TextBox _firstNameTextBox = ControlFactory.CreateTextBox(260);
-    private readonly TextBox _lastNameTextBox = ControlFactory.CreateTextBox(260);
-    private readonly TextBox _phoneNumberTextBox = ControlFactory.CreateTextBox(260);
-    private readonly TextBox _emailTextBox = ControlFactory.CreateTextBox(260);
-    private readonly TextBox _addressTextBox = ControlFactory.CreateTextBox(760);
+    private readonly TextBox _firstNameTextBox = ControlFactory.CreateTextBox(280);
+    private readonly TextBox _lastNameTextBox = ControlFactory.CreateTextBox(280);
+    private readonly TextBox _phoneNumberTextBox = ControlFactory.CreateTextBox(280);
+    private readonly TextBox _emailTextBox = ControlFactory.CreateTextBox(280);
+    private readonly ComboBox _regionComboBox = CreateAddressComboBox();
+    private readonly ComboBox _provinceComboBox = CreateAddressComboBox();
+    private readonly ComboBox _cityComboBox = CreateAddressComboBox();
+    private readonly ComboBox _barangayComboBox = CreateAddressComboBox();
+    private readonly TextBox _streetAddressTextBox = ControlFactory.CreateTextBox(280);
     private readonly Label _driverLicensePathLabel = new();
     private readonly Label _proofOfBillingPathLabel = new();
     private readonly Button _driverLicenseBrowseButton = CreateSecondaryButton("Browse", 90, 30);
@@ -33,6 +40,7 @@ public sealed class CustomerDetailsForm : Form
 
     private string? _selectedDriverLicenseSourcePath;
     private string? _selectedProofOfBillingSourcePath;
+    private bool _isInitializingAddress;
 
     public CustomerDetailsForm(CustomerFormMode mode, Customer? customer = null)
     {
@@ -40,6 +48,7 @@ public sealed class CustomerDetailsForm : Form
         _sourceCustomer = customer;
         InitializeForm();
         ConfigureInputs();
+        Shown += async (_, _) => await InitializeAddressSelectorsAsync();
 
         if (customer is not null)
         {
@@ -68,7 +77,7 @@ public sealed class CustomerDetailsForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ClientSize = new Size(900, 610);
+        ClientSize = new Size(1060, 760);
         BackColor = ThemeHelper.Surface;
         Font = FontHelper.Regular();
         ShowInTaskbar = false;
@@ -103,7 +112,7 @@ public sealed class CustomerDetailsForm : Form
 
         _validationLabel.AutoSize = false;
         _validationLabel.Location = new Point(34, 86);
-        _validationLabel.Size = new Size(820, 24);
+        _validationLabel.Size = new Size(996, 24);
         _validationLabel.Font = FontHelper.SemiBold(9F);
         _validationLabel.ForeColor = ThemeHelper.Danger;
         _validationLabel.Visible = false;
@@ -111,7 +120,7 @@ public sealed class CustomerDetailsForm : Form
         Panel contentPanel = new()
         {
             Location = new Point(32, 116),
-            Size = new Size(836, 408),
+            Size = new Size(996, 540),
             BackColor = ThemeHelper.Surface
         };
 
@@ -121,9 +130,10 @@ public sealed class CustomerDetailsForm : Form
             ColumnCount = 1,
             RowCount = 3
         };
-        contentLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 120F));
-        contentLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 132F));
-        contentLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 150F));
+
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 125F));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 260F));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 125F));
 
         contentLayout.Controls.Add(CreateSection("Required Information", CreateRequiredLayout()), 0, 0);
         contentLayout.Controls.Add(CreateSection("Contact & Address", CreateContactLayout()), 0, 1);
@@ -131,14 +141,14 @@ public sealed class CustomerDetailsForm : Form
         contentPanel.Controls.Add(contentLayout);
 
         Button cancelButton = CreateSecondaryButton(IsViewMode ? "Close" : "Cancel", 118, 38);
-        cancelButton.Location = new Point(IsViewMode ? 750 : 610, 548);
+        cancelButton.Location = new Point(IsViewMode ? 910 : 756, 680);
         cancelButton.DialogResult = DialogResult.Cancel;
 
         Button? saveButton = null;
         if (!IsViewMode)
         {
             saveButton = ControlFactory.CreatePrimaryButton(_mode == CustomerFormMode.Edit ? "Save Changes" : "Add Customer", 140, 38);
-            saveButton.Location = new Point(728, 548);
+            saveButton.Location = new Point(888, 680);
             saveButton.Click += SaveButton_Click;
             AcceptButton = saveButton;
         }
@@ -172,18 +182,24 @@ public sealed class CustomerDetailsForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 3,
-            RowCount = 2
+            RowCount = 3
         };
+
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
 
-        Panel addressPanel = CreateInputPanel("Full Address", _addressTextBox);
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 65F));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 65F));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 65F));
+
         layout.Controls.Add(CreateInputPanel("Email", _emailTextBox), 0, 0);
-        layout.Controls.Add(addressPanel, 0, 1);
-        layout.SetColumnSpan(addressPanel, 3);
+        layout.Controls.Add(CreateInputPanel("Street / House / Block No.", _streetAddressTextBox), 1, 0);
+        layout.Controls.Add(CreateInputPanel("Region", _regionComboBox), 0, 1);
+        layout.Controls.Add(CreateInputPanel("Province", _provinceComboBox), 1, 1);
+        layout.Controls.Add(CreateInputPanel("City / Municipality", _cityComboBox), 2, 1);
+        layout.Controls.Add(CreateInputPanel("Barangay", _barangayComboBox), 0, 2);
+
         return layout;
     }
 
@@ -197,6 +213,7 @@ public sealed class CustomerDetailsForm : Form
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+
         layout.Controls.Add(CreateFilePickerPanel("Driver's License Document", _driverLicensePathLabel, _driverLicenseBrowseButton), 0, 0);
         layout.Controls.Add(CreateFilePickerPanel("Proof of Billing Document", _proofOfBillingPathLabel, _proofOfBillingBrowseButton), 1, 0);
         return layout;
@@ -232,7 +249,7 @@ public sealed class CustomerDetailsForm : Form
 
         for (int row = 0; row < rows; row++)
         {
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 65F));
         }
 
         return layout;
@@ -286,7 +303,16 @@ public sealed class CustomerDetailsForm : Form
         _lastNameTextBox.PlaceholderText = "e.g. Dela Cruz";
         _phoneNumberTextBox.PlaceholderText = "e.g. 09171234567";
         _emailTextBox.PlaceholderText = "e.g. customer@email.com";
-        _addressTextBox.PlaceholderText = "Complete customer address";
+        _streetAddressTextBox.PlaceholderText = "e.g. Block 3 Lot 8, Mabini Street";
+
+        ResetComboBox(_regionComboBox, "Loading regions...", false);
+        ResetComboBox(_provinceComboBox, "Select a region first", false);
+        ResetComboBox(_cityComboBox, "Select a province first", false);
+        ResetComboBox(_barangayComboBox, "Select a city first", false);
+
+        _regionComboBox.SelectedIndexChanged += RegionComboBox_SelectedIndexChanged;
+        _provinceComboBox.SelectedIndexChanged += ProvinceComboBox_SelectedIndexChanged;
+        _cityComboBox.SelectedIndexChanged += CityComboBox_SelectedIndexChanged;
 
         _driverLicenseBrowseButton.Click += (_, _) => BrowseFile(
             "Select driver's license document",
@@ -315,7 +341,7 @@ public sealed class CustomerDetailsForm : Form
         _lastNameTextBox.Text = customer.LastName;
         _phoneNumberTextBox.Text = customer.PhoneNumber;
         _emailTextBox.Text = customer.Email ?? string.Empty;
-        _addressTextBox.Text = customer.Address ?? string.Empty;
+        _streetAddressTextBox.Text = customer.StreetAddress ?? string.Empty;
         _driverLicensePathLabel.Text = string.IsNullOrWhiteSpace(customer.DriverLicensePath)
             ? "No file attached"
             : Path.GetFileName(customer.DriverLicensePath);
@@ -337,6 +363,10 @@ public sealed class CustomerDetailsForm : Form
 
         _driverLicenseBrowseButton.Enabled = false;
         _proofOfBillingBrowseButton.Enabled = false;
+        _regionComboBox.Enabled = false;
+        _provinceComboBox.Enabled = false;
+        _cityComboBox.Enabled = false;
+        _barangayComboBox.Enabled = false;
     }
 
     private async void SaveButton_Click(object? sender, EventArgs e)
@@ -392,7 +422,11 @@ public sealed class CustomerDetailsForm : Form
             LastName = _lastNameTextBox.Text,
             PhoneNumber = _phoneNumberTextBox.Text,
             Email = NullIfWhiteSpace(_emailTextBox.Text),
-            Address = NullIfWhiteSpace(_addressTextBox.Text),
+            Region = GetSelectedAddressName(_regionComboBox),
+            Province = GetSelectedAddressName(_provinceComboBox),
+            City = GetSelectedAddressName(_cityComboBox),
+            Barangay = GetSelectedAddressName(_barangayComboBox),
+            StreetAddress = NullIfWhiteSpace(_streetAddressTextBox.Text),
             IsBlacklisted = _sourceCustomer?.IsBlacklisted ?? false,
             BlacklistReason = _sourceCustomer?.BlacklistReason,
             DriverLicensePath = _sourceCustomer?.DriverLicensePath,
@@ -408,7 +442,7 @@ public sealed class CustomerDetailsForm : Form
             return existingPath;
         }
 
-        string uploadDirectory = Path.Combine(AppContext.BaseDirectory, AppConstants.CustomersUploadFolder);
+        string uploadDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConstants.ApplicationName, AppConstants.CustomersUploadFolder);
         Directory.CreateDirectory(uploadDirectory);
 
         string extension = Path.GetExtension(sourcePath);
@@ -480,8 +514,300 @@ public sealed class CustomerDetailsForm : Form
             nameof(Customer.LastName) => _lastNameTextBox,
             nameof(Customer.PhoneNumber) => _phoneNumberTextBox,
             nameof(Customer.Email) => _emailTextBox,
+            nameof(Customer.Region) => _regionComboBox,
+            nameof(Customer.Province) => _provinceComboBox,
+            nameof(Customer.City) => _cityComboBox,
+            nameof(Customer.Barangay) => _barangayComboBox,
             _ => null
         };
+    }
+
+    private async Task InitializeAddressSelectorsAsync()
+    {
+        try
+        {
+            _isInitializingAddress = true;
+            IReadOnlyList<PsgcRegionDto> regions = await _addressService.GetRegionsAsync();
+            SetAddressItems(
+                _regionComboBox,
+                regions.Select(region => new AddressOption(region.Code, region.Name)),
+                "Select a region",
+                !IsViewMode);
+
+            if (_sourceCustomer is not null)
+            {
+                await RestoreSavedAddressAsync(_sourceCustomer);
+            }
+        }
+        catch (Exception exception)
+        {
+            ResetComboBox(_regionComboBox, "Unable to load regions", false);
+            MessageBoxHelper.ShowWarning(exception.Message, "Address Lookup");
+        }
+        finally
+        {
+            _isInitializingAddress = false;
+        }
+    }
+
+    private async Task RestoreSavedAddressAsync(Customer customer)
+    {
+        if (!SelectByName(_regionComboBox, customer.Region))
+        {
+            return;
+        }
+
+        AddressOption region = (AddressOption)_regionComboBox.SelectedItem!;
+        await LoadProvincesAsync(region.Code, customer.Province);
+
+        if (_provinceComboBox.SelectedItem is not AddressOption province)
+        {
+            return;
+        }
+
+        if (IsNotApplicableProvince(province))
+        {
+            await LoadCitiesByRegionAsync(region.Code, customer.City);
+        }
+        else
+        {
+            await LoadCitiesAsync(province.Code, customer.City);
+        }
+
+        if (_cityComboBox.SelectedItem is not AddressOption city)
+        {
+            return;
+        }
+
+        await LoadBarangaysAsync(city.Code, customer.Barangay);
+    }
+
+    private async void RegionComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_isInitializingAddress)
+        {
+            return;
+        }
+
+        if (_regionComboBox.SelectedItem is not AddressOption region)
+        {
+            ResetComboBox(_provinceComboBox, "Select a region first", false);
+            ResetComboBox(_cityComboBox, "Select a province first", false);
+            ResetComboBox(_barangayComboBox, "Select a city first", false);
+            return;
+        }
+
+        await LoadProvincesAsync(region.Code);
+    }
+
+    private async void ProvinceComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_isInitializingAddress)
+        {
+            return;
+        }
+
+        if (_provinceComboBox.SelectedItem is not AddressOption province)
+        {
+            ResetComboBox(_cityComboBox, "Select a province first", false);
+            ResetComboBox(_barangayComboBox, "Select a city first", false);
+            return;
+        }
+
+        if (IsNotApplicableProvince(province))
+        {
+            return;
+        }
+
+        await LoadCitiesAsync(province.Code);
+    }
+
+    private async void CityComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_isInitializingAddress)
+        {
+            return;
+        }
+
+        if (_cityComboBox.SelectedItem is not AddressOption city)
+        {
+            ResetComboBox(_barangayComboBox, "Select a city first", false);
+            return;
+        }
+
+        await LoadBarangaysAsync(city.Code);
+    }
+
+    private async Task LoadProvincesAsync(string regionCode, string? selectedName = null)
+    {
+        ResetComboBox(_provinceComboBox, "Loading provinces...", false);
+        ResetComboBox(_cityComboBox, "Select a province first", false);
+        ResetComboBox(_barangayComboBox, "Select a city first", false);
+
+        try
+        {
+            IReadOnlyList<PsgcProvinceDto> provinces = await _addressService.GetProvincesByRegionAsync(regionCode);
+
+            if (provinces.Count == 0)
+            {
+                SetNotApplicableProvince();
+                await LoadCitiesByRegionAsync(regionCode);
+                return;
+            }
+
+            SetAddressItems(
+                _provinceComboBox,
+                provinces.Select(province => new AddressOption(province.Code, province.Name)),
+                "Select a province",
+                !IsViewMode);
+            SelectByName(_provinceComboBox, selectedName);
+        }
+        catch (Exception exception)
+        {
+            ResetComboBox(_provinceComboBox, "Unable to load provinces", false);
+            MessageBoxHelper.ShowWarning(exception.Message, "Address Lookup");
+        }
+    }
+
+    private async Task LoadCitiesByRegionAsync(string regionCode, string? selectedName = null)
+    {
+        ResetComboBox(_cityComboBox, "Loading cities...", false);
+        ResetComboBox(_barangayComboBox, "Select a city first", false);
+
+        try
+        {
+            IReadOnlyList<PsgcCityMunicipalityDto> cities = await _addressService.GetCitiesByRegionAsync(regionCode);
+            SetAddressItems(
+                _cityComboBox,
+                cities.Select(city => new AddressOption(city.Code, city.Name)),
+                "Select a city / municipality",
+                !IsViewMode);
+            SelectByName(_cityComboBox, selectedName);
+        }
+        catch (Exception exception)
+        {
+            ResetComboBox(_cityComboBox, "Unable to load cities", false);
+            MessageBoxHelper.ShowWarning(exception.Message, "Address Lookup");
+        }
+    }
+
+    private async Task LoadCitiesAsync(string provinceCode, string? selectedName = null)
+    {
+        ResetComboBox(_cityComboBox, "Loading cities...", false);
+        ResetComboBox(_barangayComboBox, "Select a city first", false);
+
+        try
+        {
+            IReadOnlyList<PsgcCityMunicipalityDto> cities = await _addressService.GetCitiesByProvinceAsync(provinceCode);
+            SetAddressItems(
+                _cityComboBox,
+                cities.Select(city => new AddressOption(city.Code, city.Name)),
+                "Select a city / municipality",
+                !IsViewMode);
+            SelectByName(_cityComboBox, selectedName);
+        }
+        catch (Exception exception)
+        {
+            ResetComboBox(_cityComboBox, "Unable to load cities", false);
+            MessageBoxHelper.ShowWarning(exception.Message, "Address Lookup");
+        }
+    }
+
+    private async Task LoadBarangaysAsync(string cityCode, string? selectedName = null)
+    {
+        ResetComboBox(_barangayComboBox, "Loading barangays...", false);
+
+        try
+        {
+            IReadOnlyList<PsgcBarangayDto> barangays = await _addressService.GetBarangaysByCityAsync(cityCode);
+            SetAddressItems(
+                _barangayComboBox,
+                barangays.Select(barangay => new AddressOption(barangay.Code, barangay.Name)),
+                "Select a barangay",
+                !IsViewMode);
+            SelectByName(_barangayComboBox, selectedName);
+        }
+        catch (Exception exception)
+        {
+            ResetComboBox(_barangayComboBox, "Unable to load barangays", false);
+            MessageBoxHelper.ShowWarning(exception.Message, "Address Lookup");
+        }
+    }
+
+    private static ComboBox CreateAddressComboBox()
+    {
+        return new ComboBox
+        {
+            Width = 280,
+            Height = 30,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Font = FontHelper.Regular(10F)
+        };
+    }
+
+    private static void ResetComboBox(ComboBox comboBox, string text, bool enabled)
+    {
+        comboBox.BeginUpdate();
+        comboBox.Items.Clear();
+        comboBox.Items.Add(text);
+        comboBox.SelectedIndex = 0;
+        comboBox.Enabled = enabled;
+        comboBox.EndUpdate();
+    }
+
+    private static void SetAddressItems(
+        ComboBox comboBox,
+        IEnumerable<AddressOption> options,
+        string placeholder,
+        bool enabled)
+    {
+        comboBox.BeginUpdate();
+        comboBox.Items.Clear();
+        comboBox.Items.Add(placeholder);
+        comboBox.Items.AddRange(options.OrderBy(option => option.Name).Cast<object>().ToArray());
+        comboBox.SelectedIndex = 0;
+        comboBox.Enabled = enabled;
+        comboBox.EndUpdate();
+    }
+
+    private void SetNotApplicableProvince()
+    {
+        _provinceComboBox.BeginUpdate();
+        _provinceComboBox.Items.Clear();
+        _provinceComboBox.Items.Add(new AddressOption(NotApplicableProvinceCode, NotApplicableProvinceName));
+        _provinceComboBox.SelectedIndex = 0;
+        _provinceComboBox.Enabled = false;
+        _provinceComboBox.EndUpdate();
+    }
+
+    private static bool SelectByName(ComboBox comboBox, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        AddressOption? option = comboBox.Items
+            .OfType<AddressOption>()
+            .FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+
+        if (option is null)
+        {
+            return false;
+        }
+
+        comboBox.SelectedItem = option;
+        return true;
+    }
+
+    private static string? GetSelectedAddressName(ComboBox comboBox)
+    {
+        return comboBox.SelectedItem is AddressOption option ? option.Name : null;
+    }
+
+    private static bool IsNotApplicableProvince(AddressOption option)
+    {
+        return string.Equals(option.Code, NotApplicableProvinceCode, StringComparison.Ordinal);
     }
 
     private static Button CreateSecondaryButton(string text, int width, int height)
@@ -516,5 +842,10 @@ public sealed class CustomerDetailsForm : Form
                 yield return child;
             }
         }
+    }
+
+    private sealed record AddressOption(string Code, string Name)
+    {
+        public override string ToString() => Name;
     }
 }
