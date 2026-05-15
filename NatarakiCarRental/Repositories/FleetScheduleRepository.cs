@@ -223,6 +223,54 @@ public sealed class FleetScheduleRepository
         return count > 0;
     }
 
+    public async Task<FleetSchedule?> GetConflictingScheduleAsync(
+        int carId,
+        DateTime startDate,
+        DateTime endDate,
+        int? excludedScheduleId = null)
+    {
+        const string sql = """
+            SELECT TOP (1)
+                schedules.ScheduleId,
+                schedules.CarId,
+                schedules.CustomerId,
+                cars.CarName,
+                cars.PlateNumber,
+                CustomerName = NULLIF(LTRIM(RTRIM(CONCAT(customers.FirstName, N' ', customers.LastName))), N''),
+                schedules.Title,
+                schedules.ScheduleType,
+                schedules.Status,
+                schedules.StartDate,
+                schedules.EndDate,
+                schedules.Notes,
+                schedules.CreatedByUserId,
+                schedules.CreatedAt,
+                schedules.UpdatedAt,
+                schedules.IsArchived
+            FROM dbo.FleetSchedules AS schedules
+            INNER JOIN dbo.Cars AS cars ON cars.CarId = schedules.CarId
+            LEFT JOIN dbo.Customers AS customers ON customers.CustomerId = schedules.CustomerId
+            WHERE schedules.CarId = @CarId
+              AND schedules.IsArchived = 0
+              AND schedules.Status <> N'Cancelled'
+              AND (@ExcludedScheduleId IS NULL OR schedules.ScheduleId <> @ExcludedScheduleId)
+              AND schedules.StartDate <= @EndDate
+              AND schedules.EndDate >= @StartDate
+            ORDER BY schedules.StartDate, schedules.ScheduleId;
+            """;
+
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QuerySingleOrDefaultAsync<FleetSchedule>(
+            sql,
+            new
+            {
+                CarId = carId,
+                StartDate = startDate.Date,
+                EndDate = endDate.Date,
+                ExcludedScheduleId = excludedScheduleId
+            });
+    }
+
     private async Task<IReadOnlyList<FleetSchedule>> GetSchedulesInRangeAsync(DateTime startDate, DateTime endDate)
     {
         const string sql = """

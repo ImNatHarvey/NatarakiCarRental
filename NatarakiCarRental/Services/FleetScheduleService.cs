@@ -206,17 +206,20 @@ public sealed class FleetScheduleService
             }
         }
 
-        bool hasConflict = schedule.Status != FleetScheduleConstants.Status.Cancelled
-            && await _scheduleRepository.HasConflictAsync(
+        FleetSchedule? conflict = schedule.Status == FleetScheduleConstants.Status.Cancelled
+            ? null
+            : await _scheduleRepository.GetConflictingScheduleAsync(
                 schedule.CarId,
                 schedule.StartDate,
                 schedule.EndDate,
                 excludedScheduleId);
 
-        if (hasConflict)
+        if (conflict is not null)
         {
             throw new ValidationException(
-                [new ValidationFailure(nameof(FleetSchedule.StartDate), "This car already has an overlapping active schedule.")]);
+                [new ValidationFailure(
+                    nameof(FleetSchedule.StartDate),
+                    $"{car.CarName} ({car.PlateNumber}) already has '{conflict.Title}' scheduled from {conflict.StartDate:MMM d, yyyy} to {conflict.EndDate:MMM d, yyyy}.")]);
         }
     }
 

@@ -183,14 +183,14 @@ public sealed class FleetScheduleDetailsForm : Form
         _customerComboBox.SelectedIndex = 0;
 
         _scheduleTypeComboBox.Items.AddRange(FleetScheduleConstants.Type.All.Cast<object>().ToArray());
-        _statusComboBox.Items.AddRange(FleetScheduleConstants.Status.All.Cast<object>().ToArray());
+        _statusComboBox.Items.AddRange(FleetScheduleVisualHelper.StatusOptions.Cast<object>().ToArray());
     }
 
     private void ApplyDefaults()
     {
         SelectLookup(_carComboBox, _prefilledCarId);
         _scheduleTypeComboBox.SelectedItem = FleetScheduleConstants.Type.Reservation;
-        _statusComboBox.SelectedItem = FleetScheduleConstants.Status.Pending;
+        SelectStatus(FleetScheduleConstants.Status.Pending);
         DateTime date = _prefilledDate?.Date ?? DateTime.Today;
         _startDatePicker.Value = date;
         _endDatePicker.Value = date;
@@ -202,7 +202,7 @@ public sealed class FleetScheduleDetailsForm : Form
         SelectLookup(_customerComboBox, schedule.CustomerId);
         _titleTextBox.Text = schedule.Title;
         _scheduleTypeComboBox.SelectedItem = schedule.ScheduleType;
-        _statusComboBox.SelectedItem = schedule.Status;
+        SelectStatus(schedule.Status);
         _startDatePicker.Value = schedule.StartDate;
         _endDatePicker.Value = schedule.EndDate;
         _notesTextBox.Text = schedule.Notes ?? string.Empty;
@@ -287,7 +287,7 @@ public sealed class FleetScheduleDetailsForm : Form
             CustomerId = GetSelectedLookupId(_customerComboBox),
             Title = _titleTextBox.Text,
             ScheduleType = _scheduleTypeComboBox.SelectedItem?.ToString() ?? string.Empty,
-            Status = _statusComboBox.SelectedItem?.ToString() ?? string.Empty,
+            Status = GetSelectedStatusValue(),
             StartDate = _startDatePicker.Value.Date,
             EndDate = _endDatePicker.Value.Date,
             Notes = _notesTextBox.Text
@@ -405,6 +405,25 @@ public sealed class FleetScheduleDetailsForm : Form
         {
             comboBox.SelectedItem = option;
         }
+    }
+
+    private void SelectStatus(string status)
+    {
+        FleetScheduleVisualHelper.StatusDisplayOption? option = _statusComboBox.Items
+            .OfType<FleetScheduleVisualHelper.StatusDisplayOption>()
+            .FirstOrDefault(item => item.Value == status);
+
+        if (option is not null)
+        {
+            _statusComboBox.SelectedItem = option;
+        }
+    }
+
+    private string GetSelectedStatusValue()
+    {
+        return _statusComboBox.SelectedItem is FleetScheduleVisualHelper.StatusDisplayOption option
+            ? option.Value
+            : string.Empty;
     }
 
     private sealed record LookupOption(int? Id, string Name)

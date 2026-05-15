@@ -19,6 +19,7 @@ public sealed class FleetScheduleControl : UserControl
     private readonly Label _monthLabel = new();
     private readonly TimelineCanvas _timelineCanvas;
     private readonly ToolTip _toolTip = new();
+    private int? _hoveredScheduleId;
     private DateTime _selectedMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private IReadOnlyList<Car> _cars = [];
     private IReadOnlyList<Models.FleetSchedule> _schedules = [];
@@ -120,39 +121,48 @@ public sealed class FleetScheduleControl : UserControl
 
     private Panel CreateLegendPanel()
     {
-        Panel panel = new()
+        FlowLayoutPanel panel = new()
         {
             Location = new Point(544, 8),
-            Size = new Size(430, 38),
-            BackColor = ThemeHelper.ContentBackground
+            Size = new Size(510, 38),
+            BackColor = ThemeHelper.ContentBackground,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Padding = new Padding(0, 7, 0, 0)
         };
 
-        AddLegendItem(panel, "Pending", ThemeHelper.Warning, 0);
-        AddLegendItem(panel, "Reserved", ThemeHelper.Primary, 86);
-        AddLegendItem(panel, "Rented", ThemeHelper.Success, 182);
-        AddLegendItem(panel, "Maintenance", Color.FromArgb(234, 88, 12), 264);
-        AddLegendItem(panel, "Cancelled", ThemeHelper.GrayIcon, 370);
+        AddLegendItem(panel, "Pending", FleetScheduleVisualHelper.GetColor(FleetScheduleConstants.Status.Pending));
+        AddLegendItem(panel, "Reserved", FleetScheduleVisualHelper.GetColor(FleetScheduleConstants.Status.Confirmed));
+        AddLegendItem(panel, "Rented", FleetScheduleVisualHelper.GetColor(FleetScheduleConstants.Status.Active));
+        AddLegendItem(panel, "Maintenance", FleetScheduleVisualHelper.GetColor(FleetScheduleConstants.Status.Active, FleetScheduleConstants.Type.Maintenance));
+        AddLegendItem(panel, "Cancelled", FleetScheduleVisualHelper.GetColor(FleetScheduleConstants.Status.Cancelled));
         return panel;
     }
 
-    private static void AddLegendItem(Panel panel, string text, Color color, int left)
+    private static void AddLegendItem(FlowLayoutPanel panel, string text, Color color)
     {
-        Panel swatch = new()
+        Panel itemPanel = new()
         {
-            Location = new Point(left, 12),
-            Size = new Size(14, 14),
-            BackColor = color
+            Size = new Size(text == "Maintenance" ? 112 : 88, 24),
+            Margin = new Padding(0, 0, 8, 0),
+            BackColor = ThemeHelper.ContentBackground
+        };
+        RoundedLegendMarker swatch = new(color)
+        {
+            Location = new Point(0, 5),
+            Size = new Size(14, 14)
         };
         Label label = new()
         {
             Text = text,
-            Location = new Point(left + 20, 8),
-            Size = new Size(78, 22),
+            Location = new Point(22, 1),
+            Size = new Size(itemPanel.Width - 22, 22),
             Font = FontHelper.Regular(9F),
             ForeColor = ThemeHelper.TextSecondary
         };
-        panel.Controls.Add(swatch);
-        panel.Controls.Add(label);
+        itemPanel.Controls.Add(swatch);
+        itemPanel.Controls.Add(label);
+        panel.Controls.Add(itemPanel);
     }
 
     private Control CreateTimelineHost()
@@ -220,11 +230,17 @@ public sealed class FleetScheduleControl : UserControl
     {
         Models.FleetSchedule? schedule = _timelineCanvas.GetScheduleAt(e.Location);
         _timelineCanvas.Cursor = schedule is null ? Cursors.Default : Cursors.Hand;
-        _toolTip.SetToolTip(
-            _timelineCanvas,
-            schedule is null
-                ? null
-                : $"{schedule.CarName} ({schedule.PlateNumber})\n{schedule.Title}\n{schedule.StartDate:MMM d} - {schedule.EndDate:MMM d}\n{schedule.Status}");
+        int? nextScheduleId = schedule?.ScheduleId;
+
+        if (_hoveredScheduleId != nextScheduleId)
+        {
+            _hoveredScheduleId = nextScheduleId;
+            _toolTip.SetToolTip(
+                _timelineCanvas,
+                schedule is null
+                    ? null
+                    : $"{schedule.CarName} ({schedule.PlateNumber})\n{schedule.Title}\n{schedule.StartDate:MMM d} - {schedule.EndDate:MMM d}\n{FleetScheduleVisualHelper.GetDisplayStatus(schedule.Status, schedule.ScheduleType)}");
+        }
     }
 
     private async void TimelineCanvas_MouseClick(object? sender, MouseEventArgs e)
@@ -320,11 +336,13 @@ public sealed class FleetScheduleControl : UserControl
             _scheduleBounds.Clear();
 
             int days = DateTime.DaysInMonth(_owner.SelectedMonth.Year, _owner.SelectedMonth.Month);
-            using Pen gridPen = new(ThemeHelper.Border);
+            using Pen gridPen = new(Color.FromArgb(226, 232, 240));
             using SolidBrush headerBrush = new(ThemeHelper.ContentBackground);
             using SolidBrush surfaceBrush = new(ThemeHelper.Surface);
             using SolidBrush textBrush = new(ThemeHelper.TextPrimary);
             using SolidBrush mutedBrush = new(ThemeHelper.TextSecondary);
+            using SolidBrush weekendBrush = new(Color.FromArgb(248, 250, 252));
+            using SolidBrush todayBrush = new(Color.FromArgb(239, 246, 255));
 
             graphics.FillRectangle(surfaceBrush, 0, 0, AutoScrollMinSize.Width, AutoScrollMinSize.Height);
             graphics.FillRectangle(headerBrush, 0, 0, AutoScrollMinSize.Width, HeaderHeight);
@@ -335,6 +353,16 @@ public sealed class FleetScheduleControl : UserControl
             {
                 int x = CarColumnWidth + day * DayWidth;
                 DateTime date = _owner.SelectedMonth.AddDays(day);
+                if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+                {
+                    graphics.FillRectangle(weekendBrush, x, HeaderHeight, DayWidth, AutoScrollMinSize.Height - HeaderHeight);
+                }
+
+                if (date.Date == DateTime.Today)
+                {
+                    graphics.FillRectangle(todayBrush, x, 0, DayWidth, AutoScrollMinSize.Height);
+                }
+
                 graphics.DrawLine(gridPen, x, 0, x, AutoScrollMinSize.Height);
                 graphics.DrawString(date.Day.ToString(), FontHelper.SemiBold(9F), textBrush, new PointF(x + 13, 8));
                 graphics.DrawString(date.ToString("ddd"), FontHelper.Regular(8F), mutedBrush, new PointF(x + 10, 24));
@@ -343,11 +371,11 @@ public sealed class FleetScheduleControl : UserControl
             graphics.DrawLine(gridPen, 0, HeaderHeight, AutoScrollMinSize.Width, HeaderHeight);
             if (_owner._cars.Count == 0)
             {
-                graphics.DrawString(
-                    "No active cars available. Add cars in Car Garage first.",
-                    FontHelper.Regular(11F),
-                    mutedBrush,
-                    new PointF(24, HeaderHeight + 28));
+                const string message = "No active cars available. Add cars in Car Garage first.";
+                SizeF messageSize = graphics.MeasureString(message, FontHelper.Regular(11F));
+                float x = Math.Max((ClientSize.Width - messageSize.Width) / 2 - AutoScrollPosition.X, 24);
+                float y = HeaderHeight + Math.Max((ClientSize.Height - HeaderHeight - messageSize.Height) / 2 - AutoScrollPosition.Y, 28);
+                graphics.DrawString(message, FontHelper.Regular(11F), mutedBrush, new PointF(x, y));
                 return;
             }
 
@@ -381,10 +409,11 @@ public sealed class FleetScheduleControl : UserControl
                 _scheduleBounds[schedule.ScheduleId] = rect;
 
                 using GraphicsPath path = GetRoundedRect(rect, 12);
-                using SolidBrush fillBrush = new(GetStatusColor(schedule));
+                using SolidBrush fillBrush = new(FleetScheduleVisualHelper.GetColor(schedule.Status, schedule.ScheduleType));
                 graphics.FillPath(fillBrush, path);
 
-                string text = rect.Width >= 80 ? $"{schedule.Title} ({schedule.Status})" : schedule.Status;
+                string displayStatus = FleetScheduleVisualHelper.GetDisplayStatus(schedule.Status, schedule.ScheduleType);
+                string text = rect.Width >= 80 ? $"{schedule.Title} ({displayStatus})" : displayStatus;
                 using StringFormat format = new()
                 {
                     Alignment = StringAlignment.Near,
@@ -401,27 +430,6 @@ public sealed class FleetScheduleControl : UserControl
             return new Point(point.X - AutoScrollPosition.X, point.Y - AutoScrollPosition.Y);
         }
 
-        private static Color GetStatusColor(Models.FleetSchedule schedule)
-        {
-            if (schedule.Status == FleetScheduleConstants.Status.Cancelled)
-            {
-                return ThemeHelper.GrayIcon;
-            }
-
-            if (schedule.ScheduleType == FleetScheduleConstants.Type.Maintenance)
-            {
-                return Color.FromArgb(234, 88, 12);
-            }
-
-            return schedule.Status switch
-            {
-                FleetScheduleConstants.Status.Pending => ThemeHelper.Warning,
-                FleetScheduleConstants.Status.Confirmed => ThemeHelper.Primary,
-                FleetScheduleConstants.Status.Active => ThemeHelper.Success,
-                _ => ThemeHelper.Purple
-            };
-        }
-
         private static GraphicsPath GetRoundedRect(Rectangle rect, int radius)
         {
             GraphicsPath path = new();
@@ -432,6 +440,31 @@ public sealed class FleetScheduleControl : UserControl
             path.AddArc(rect.X, rect.Bottom - diameter, diameter, diameter, 90, 90);
             path.CloseFigure();
             return path;
+        }
+    }
+
+    private sealed class RoundedLegendMarker : Control
+    {
+        private readonly Color _fillColor;
+
+        public RoundedLegendMarker(Color fillColor)
+        {
+            _fillColor = fillColor;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using GraphicsPath path = new();
+            path.AddArc(0, 0, Width, Height, 180, 90);
+            path.AddArc(Width - Height, 0, Height, Height, 270, 90);
+            path.AddArc(Width - Height, Height - Height, Height, Height, 0, 90);
+            path.AddArc(0, Height - Height, Height, Height, 90, 90);
+            path.CloseFigure();
+            using SolidBrush brush = new(_fillColor);
+            e.Graphics.FillPath(brush, path);
         }
     }
 }
