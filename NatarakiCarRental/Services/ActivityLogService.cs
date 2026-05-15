@@ -1,12 +1,15 @@
 using System.Data;
 using Dapper;
 using NatarakiCarRental.Data;
+using NatarakiCarRental.Models;
+using NatarakiCarRental.Repositories;
 
 namespace NatarakiCarRental.Services;
 
 public sealed class ActivityLogService
 {
     private readonly DbConnectionFactory _connectionFactory;
+    private readonly ActivityLogRepository _activityLogRepository;
 
     public ActivityLogService()
         : this(new DbConnectionFactory())
@@ -16,6 +19,31 @@ public sealed class ActivityLogService
     public ActivityLogService(DbConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory;
+        _activityLogRepository = new ActivityLogRepository(connectionFactory);
+    }
+
+    public Task<IReadOnlyList<ActivityLog>> SearchLogsAsync(
+        string searchText,
+        string? actionType = null,
+        string? entityName = null,
+        int maxRows = 100)
+    {
+        return _activityLogRepository.SearchLogsAsync(searchText, actionType, entityName, maxRows);
+    }
+
+    public Task<ActivityLogMetrics> GetMetricsAsync()
+    {
+        return _activityLogRepository.GetMetricsAsync();
+    }
+
+    public Task<IReadOnlyList<string>> GetActionTypesAsync()
+    {
+        return _activityLogRepository.GetActionTypesAsync();
+    }
+
+    public Task<IReadOnlyList<string>> GetEntityNamesAsync()
+    {
+        return _activityLogRepository.GetEntityNamesAsync();
     }
 
     public async Task LogAsync(

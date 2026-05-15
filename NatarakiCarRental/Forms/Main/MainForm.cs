@@ -1,6 +1,7 @@
 using FontAwesome.Sharp;
 using NatarakiCarRental.Helpers;
 using NatarakiCarRental.Models;
+using NatarakiCarRental.UserControls.ActivityLogs;
 using NatarakiCarRental.UserControls.Cars;
 using NatarakiCarRental.UserControls.Customers;
 using NatarakiCarRental.UserControls.Dashboard;
@@ -88,7 +89,7 @@ public sealed class MainForm : Form
             new("Customers", IconChar.Users, true),
             new("Transactions", IconChar.Receipt, false),
             new("Offsite", IconChar.LocationDot, false),
-            new("Activity Log", IconChar.ClipboardList, false),
+            new("Activity Log", IconChar.ClipboardList, true),
             new("Manage System", IconChar.Gear, false)
         ];
 
@@ -146,6 +147,12 @@ public sealed class MainForm : Form
             return;
         }
 
+        if (pageName == "Activity Log")
+        {
+            ShowActivityLog();
+            return;
+        }
+
         ShowPlaceholder(pageName);
     }
 
@@ -165,6 +172,12 @@ public sealed class MainForm : Form
     {
         LoadContent(new CustomerControl(CurrentUser.UserId));
         SetActiveNavigation("Customers");
+    }
+
+    private void ShowActivityLog()
+    {
+        LoadContent(new ActivityLogControl());
+        SetActiveNavigation("Activity Log");
     }
 
     private void ShowPlaceholder(string pageName)
